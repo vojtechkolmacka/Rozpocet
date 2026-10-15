@@ -27,13 +27,13 @@
     body {
       background-color: var(--bg-primary);
       color: var(--text-main);
-      padding-bottom: 80px;
+      padding-bottom: 90px;
     }
 
     header {
       background-color: var(--bg-surface);
       border-bottom: 1px solid var(--border);
-      padding: 1rem;
+      padding: 0.85rem 1rem;
       position: sticky;
       top: 0;
       z-index: 10;
@@ -43,9 +43,8 @@
     }
 
     header h1 {
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       font-weight: 700;
-      letter-spacing: -0.02em;
     }
 
     .period-badge {
@@ -67,27 +66,109 @@
       background-color: var(--bg-surface);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 1.25rem;
+      padding: 1.1rem;
       margin-bottom: 1rem;
     }
 
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
     .card-title {
-      font-size: 0.85rem;
+      font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-muted);
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.35rem;
     }
 
     .metric-value {
-      font-size: 1.75rem;
+      font-size: 1.35rem;
       font-weight: 800;
     }
 
     .metric-sub {
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: var(--text-muted);
-      margin-top: 0.25rem;
+      margin-top: 0.2rem;
+    }
+
+    .expense-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .expense-item {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .expense-item.paid {
+      border-color: rgba(34, 197, 94, 0.4);
+      background-color: rgba(34, 197, 94, 0.05);
+    }
+
+    .expense-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .expense-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .expense-item.paid .expense-name {
+      color: var(--text-muted);
+      text-decoration: line-through;
+    }
+
+    .expense-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .expense-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-align: right;
+    }
+
+    .expense-amount {
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .check-circle {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      color: transparent;
+    }
+
+    .expense-item.paid .check-circle {
+      background-color: var(--accent-green);
+      border-color: var(--accent-green);
+      color: #000;
+      font-weight: bold;
     }
 
     .nav-bar {
@@ -125,56 +206,100 @@
 
   <header>
     <h1>Koloběžníkův rozpočet</h1>
-    <div id="current-period" class="period-badge">Načítání...</div>
+    <div id="current-period" class="period-badge">Načítám...</div>
   </header>
 
   <main id="app-container">
-    <div class="card">
-      <div class="card-title">Stav inicializace</div>
-      <div class="metric-value" style="color: var(--accent);">Načítám databázi...</div>
-      <div class="metric-sub">Připojuji lokální úložiště IndexedDB.</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Zbývá doplatit</div>
+        <div id="sum-unpaid" class="metric-value" style="color: var(--accent-red);">0 Kč</div>
+        <div id="count-unpaid" class="metric-sub">0 nezaplaceno</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Zaplaceno</div>
+        <div id="sum-paid" class="metric-value" style="color: var(--accent-green);">0 Kč</div>
+        <div id="count-paid" class="metric-sub">0 položek</div>
+      </div>
+    </div>
+
+    <div style="margin: 1.25rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
+      <h2 style="font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
+        Platby pro tento měsíc
+      </h2>
+      <span style="font-size: 0.75rem; color: var(--text-muted);">Klepnutím označíš</span>
+    </div>
+
+    <div id="expenses-list" class="expense-list">
+      <!-- Položky se načtou dynamicky -->
     </div>
   </main>
 
   <nav class="nav-bar">
-    <button class="nav-btn active">Přehled</button>
-    <button class="nav-btn">Platby</button>
+    <button class="nav-btn active">Platby</button>
     <button class="nav-btn">Půjčky</button>
     <button class="nav-btn">Cíle</button>
     <button class="nav-btn">Nastavení</button>
   </nav>
 
   <script type="module">
-    import { openDB, formatKc, toCents } from './db.js';
+    import { openDB, formatKc, dbGetAll } from './db.js';
+    import { seedInitialData } from './initial-data.js';
+    import { getPeriodKey, ensureMonthInitialized, toggleExpensePaid, getMonthSummary } from './budget.js';
 
-    const now = new Date();
+    const currentPeriod = getPeriodKey();
+
     const czechMonths = [
       "Leden", "Únor", "Březen", "Duben", "Květen", "Červen",
       "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"
     ];
+    const now = new Date();
     document.getElementById('current-period').textContent = `${czechMonths[now.getMonth()]} ${now.getFullYear()}`;
 
-    // Test otevření IndexedDB a haléřové matematiky
-    openDB().then(() => {
-      const testCents = toCents("10067,90");
-      const formatted = formatKc(testCents);
+    async function render() {
+      await openDB();
+      await seedInitialData();
+      await ensureMonthInitialized(currentPeriod);
+
+      const summary = await getMonthSummary(currentPeriod);
+      const allExpenses = await dbGetAll('monthly_expenses');
+      const monthExpenses = allExpenses.filter(e => e.period === currentPeriod);
+
+      // Aktualizace horních karet
+      document.getElementById('sum-unpaid').textContent = formatKc(summary.totalUnpaidExpensesCents);
+      document.getElementById('count-unpaid').textContent = `${summary.expensesCount - summary.paidCount} z ${summary.expensesCount} položek`;
       
-      document.getElementById('app-container').innerHTML = `
-        <div class="card">
-          <div class="card-title">Databáze IndexedDB</div>
-          <div class="metric-value" style="color: var(--accent-green);">Aktivní a připravená</div>
-          <div class="metric-sub">Haléřový převodník funguje: <strong>${formatted}</strong> (uloženo jako ${testCents} haléřů).</div>
-        </div>
-      `;
-    }).catch(err => {
-      document.getElementById('app-container').innerHTML = `
-        <div class="card">
-          <div class="card-title">Chyba databáze</div>
-          <div class="metric-value" style="color: var(--accent-red);">Chyba</div>
-          <div class="metric-sub">${err.message}</div>
-        </div>
-      `;
-    });
+      document.getElementById('sum-paid').textContent = formatKc(summary.totalPaidExpensesCents);
+      document.getElementById('count-paid').textContent = `${summary.paidCount} hotovo`;
+
+      // Vykreslení seznamu položek
+      const listContainer = document.getElementById('expenses-list');
+      listContainer.innerHTML = '';
+
+      monthExpenses.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `expense-item ${item.isPaid ? 'paid' : ''}`;
+        div.innerHTML = `
+          <div class="expense-info">
+            <div class="expense-name">${item.name}</div>
+            <div class="expense-meta">Splatnost: ${item.dueDay}. v měsíci | ${item.category}</div>
+          </div>
+          <div class="expense-right">
+            <div class="expense-amount">${formatKc(item.plannedAmountCents)}</div>
+            <div class="check-circle">✓</div>
+          </div>
+        `;
+
+        div.addEventListener('click', async () => {
+          await toggleExpensePaid(item.id, !item.isPaid);
+          await render();
+        });
+
+        listContainer.appendChild(div);
+      });
+    }
+
+    render();
   </script>
 </body>
 </html>
