@@ -131,8 +131,8 @@
   <main id="app-container">
     <div class="card">
       <div class="card-title">Stav inicializace</div>
-      <div class="metric-value" style="color: var(--accent);">Krok 1 připraven</div>
-      <div class="metric-sub">Základní skelet PWA rozhraní je načten. V dalším kroku připojíme lokální databázi IndexedDB.</div>
+      <div class="metric-value" style="color: var(--accent);">Načítám databázi...</div>
+      <div class="metric-sub">Připojuji lokální úložiště IndexedDB.</div>
     </div>
   </main>
 
@@ -144,13 +144,37 @@
     <button class="nav-btn">Nastavení</button>
   </nav>
 
-  <script>
+  <script type="module">
+    import { openDB, formatKc, toCents } from './db.js';
+
     const now = new Date();
     const czechMonths = [
       "Leden", "Únor", "Březen", "Duben", "Květen", "Červen",
       "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"
     ];
     document.getElementById('current-period').textContent = `${czechMonths[now.getMonth()]} ${now.getFullYear()}`;
+
+    // Test otevření IndexedDB a haléřové matematiky
+    openDB().then(() => {
+      const testCents = toCents("10067,90");
+      const formatted = formatKc(testCents);
+      
+      document.getElementById('app-container').innerHTML = `
+        <div class="card">
+          <div class="card-title">Databáze IndexedDB</div>
+          <div class="metric-value" style="color: var(--accent-green);">Aktivní a připravená</div>
+          <div class="metric-sub">Haléřový převodník funguje: <strong>${formatted}</strong> (uloženo jako ${testCents} haléřů).</div>
+        </div>
+      `;
+    }).catch(err => {
+      document.getElementById('app-container').innerHTML = `
+        <div class="card">
+          <div class="card-title">Chyba databáze</div>
+          <div class="metric-value" style="color: var(--accent-red);">Chyba</div>
+          <div class="metric-sub">${err.message}</div>
+        </div>
+      `;
+    });
   </script>
 </body>
 </html>
