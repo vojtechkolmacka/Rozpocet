@@ -4,8 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Rozpočet">
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="apple-touch-icon" href="./icon.svg">
   <title>Koloběžníkův rozpočet</title>
   <style>
     :root {
@@ -247,6 +251,24 @@
   </nav>
 
   <script>
+    // --- PWA INSTALACE A SERVICE WORKER ---
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const installBtn = document.getElementById('btn-install-pwa');
+      if (installBtn) installBtn.style.display = 'block';
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.warn('SW registrace:', err);
+        });
+      });
+    }
+
+    // --- DATABÁZE A ÚLOŽIŠTĚ ---
     const DB_NAME = 'KolobeznikRozpocetDB';
     const DB_VERSION = 2;
 
@@ -406,7 +428,7 @@
       }
     }
 
-    // --- SPRÁVA OBDOBÍ (MĚSÍCŮ) ---
+    // --- SPRÁVA OBDOBÍ ---
     const czechMonths = ["Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"];
     let viewDate = new Date();
 
@@ -492,12 +514,9 @@
         else unpaidExpensesCents += e.plannedAmountCents;
       }
 
-      // Příjmy
       const allIncomes = await dbGetAll('incomes');
       const monthIncomes = allIncomes.filter(i => i.period === curPeriod);
       const totalIncomesCents = monthIncomes.reduce((sum, i) => sum + i.amountCents, 0);
-
-      // Rozdíl příjmy minus zaplacené výdaje
       const netCashFlowCents = totalIncomesCents - paidExpensesCents;
 
       const debts = await dbGetAll('debts_payable');
@@ -576,7 +595,7 @@
       `;
 
       document.getElementById('dash-btn-add-income').addEventListener('click', async () => {
-        const title = prompt('Popis příjmu (např. Výplata, Odměny, Prodej na bazoši):', 'Výplata');
+        const title = prompt('Popis příjmu (Výplata, Odměny, Prodej):', 'Výplata');
         if (!title || !title.trim()) return;
         const valStr = prompt(`Částka pro "${title}" v Kč:`);
         if (!valStr || !valStr.trim()) return;
@@ -595,7 +614,7 @@
       document.getElementById('dash-card-goals').addEventListener('click', () => setTab('goals'));
     }
 
-    // --- ZÁLOŽKA 1: PLATBY & PŘÍJMY ---
+    // --- ZÁLOŽKA 1: PLATBY ---
     async function renderExpenses() {
       const curPeriod = formatPeriodKey(viewDate);
       const allExpenses = await dbGetAll('monthly_expenses');
@@ -671,7 +690,6 @@
         <div id="expenses-list" class="item-list"></div>
       `;
 
-      // Smazání příjmu
       container.querySelectorAll('.btn-del-income').forEach(b => {
         b.addEventListener('click', async () => {
           const id = parseInt(b.getAttribute('data-id'), 10);
@@ -682,7 +700,6 @@
         });
       });
 
-      // Přidání příjmu
       document.getElementById('btn-add-income-page').addEventListener('click', async () => {
         const title = prompt('Popis příjmu (Výplata, Odměny, Prodej):', 'Výplata');
         if (!title || !title.trim()) return;
@@ -698,7 +715,6 @@
         await render();
       });
 
-      // Přidání výdaje
       document.getElementById('btn-add-expense').addEventListener('click', async () => {
         const name = prompt('Název nové platby:');
         if (!name || !name.trim()) return;
@@ -1173,6 +1189,16 @@
 
       container.innerHTML = `
         <div class="card">
+          <div class="card-title">Instalace do telefonu</div>
+          <button id="btn-install-pwa" class="btn btn-primary" style="width: 100%; display: ${deferredPrompt ? 'block' : 'none'}; margin-bottom: 0.75rem;">
+            📲 Nainstalovat Koloběžníkův rozpočet do telefonu
+          </button>
+          <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+            Pokud se tlačítko nezobrazuje, klepni v Chrome nahoře na <strong>tři tečky</strong> a zvol <strong>„Nainstalovat aplikaci“</strong> (nebo „Přidat na plochu“).
+          </div>
+        </div>
+
+        <div class="card">
           <div class="card-title">Stav ochrany dat</div>
           <div style="font-size: 0.85rem; margin-bottom: 0.5rem;">${storageStatusHtml}</div>
           <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
@@ -1206,10 +1232,24 @@
           <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
             <strong>Projekt:</strong> Koloběžníkův rozpočet<br>
             <strong>Typ:</strong> Offline PWA s trvalou databází IndexedDB<br>
-            <strong>Aktualizace:</strong> Nezávislé měsíce, přepínání historie, evidence příjmů a dluhů
+            <strong>Podpora PWA:</strong> Instalovatelná webová aplikace (Android / Desktop)
           </div>
         </div>
       `;
+
+      const installBtn = document.getElementById('btn-install-pwa');
+      if (installBtn) {
+        installBtn.addEventListener('click', async () => {
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+              deferredPrompt = null;
+              installBtn.style.display = 'none';
+            }
+          }
+        });
+      }
 
       document.getElementById('btn-export-backup').addEventListener('click', async () => {
         const backup = await getBackupPayload();
