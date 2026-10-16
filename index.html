@@ -3,1343 +3,1163 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0f172a">
-  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1c1e24">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Rozpočet">
-  <link rel="manifest" href="./manifest.json">
-  <link rel="icon" type="image/svg+xml" href="./icon.svg">
-  <link rel="apple-touch-icon" href="./icon.svg">
-  <title>Koloběžníkův rozpočet</title>
+  <title>Koloběžníkovy služby</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
   <style>
     :root {
-      --bg-primary: #0f172a;
-      --bg-surface: #1e293b;
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
-      --accent: #38bdf8;
-      --accent-green: #22c55e;
-      --accent-red: #ef4444;
-      --accent-amber: #f59e0b;
-      --border: #334155;
+      --bg: #121316;
+      --card-bg: #1c1e24;
+      --card-border: #2a2d36;
+      --text: #f0f2f5;
+      --text-muted: #8b92a0;
+      --primary: #ffaa00;
+      --primary-hover: #e09600;
+      --success: #2ecc71;
+      --danger: #e74c3c;
+      --nav-bg: #16181e;
+      --accent: #3498db;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    body { background-color: var(--bg-primary); color: var(--text-main); padding-bottom: 90px; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding-bottom: 95px;
+      min-height: 100vh;
+    }
 
     header {
-      background-color: var(--bg-surface);
-      border-bottom: 1px solid var(--border);
-      padding: 0.85rem 1rem;
+      background-color: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      padding: 14px 16px;
+      text-align: center;
       position: sticky;
       top: 0;
       z-index: 10;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
     }
 
-    header h1 { font-size: 1.05rem; font-weight: 700; }
-
-    .period-selector {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      background-color: var(--border);
-      border-radius: 9999px;
-      padding: 0.2rem 0.5rem;
+    header h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--primary);
     }
 
-    .period-btn {
-      background: none;
-      border: none;
-      color: var(--text-main);
-      font-size: 0.9rem;
-      font-weight: bold;
-      cursor: pointer;
-      padding: 0 0.3rem;
+    main {
+      padding: 14px;
+      max-width: 650px;
+      margin: 0 auto;
     }
 
-    .period-label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text-main);
-      min-width: 80px;
-      text-align: center;
-    }
-
-    main { padding: 1rem; max-width: 600px; margin: 0 auto; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
 
     .card {
-      background-color: var(--bg-surface);
-      border: 1px solid var(--border);
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
       border-radius: 12px;
-      padding: 1.1rem;
-      margin-bottom: 1rem;
+      padding: 16px;
+      margin-bottom: 14px;
     }
-
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; }
 
     .card-title {
-      font-size: 0.75rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      margin-bottom: 0.35rem;
-    }
-
-    .metric-value { font-size: 1.35rem; font-weight: 800; }
-    .metric-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
-
-    .item-list { display: flex; flex-direction: column; gap: 0.6rem; }
-
-    .expense-item {
-      background-color: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 0.85rem 1rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      user-select: none;
-      transition: border-color 0.15s ease;
-    }
-
-    .expense-item.paid {
-      border-color: rgba(34, 197, 94, 0.4);
-      background-color: rgba(34, 197, 94, 0.05);
-    }
-
-    .expense-item.paid .expense-name {
-      color: var(--text-muted);
-      text-decoration: line-through;
-    }
-
-    .expense-info { display: flex; flex-direction: column; gap: 0.2rem; flex: 1; cursor: pointer; }
-    .expense-name { font-size: 0.95rem; font-weight: 600; }
-    .expense-meta { font-size: 0.75rem; color: var(--text-muted); }
-
-    .expense-right { display: flex; align-items: center; gap: 0.6rem; text-align: right; }
-    .expense-amount { font-size: 0.95rem; font-weight: 700; cursor: pointer; }
-
-    .check-circle {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      border: 2px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.85rem;
-      color: transparent;
-      cursor: pointer;
-    }
-
-    .expense-item.paid .check-circle {
-      background-color: var(--accent-green);
-      border-color: var(--accent-green);
-      color: #000;
-      font-weight: bold;
-    }
-
-    .btn-icon {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      padding: 0.25rem 0.35rem;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    .btn {
-      border: none;
-      border-radius: 8px;
-      padding: 0.55rem 0.85rem;
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.3rem;
-    }
-
-    .btn-primary { background-color: var(--accent); color: #000; }
-    .btn-success { background-color: var(--accent-green); color: #000; }
-    .btn-secondary { background-color: var(--border); color: var(--text-main); }
-    .btn-danger { background-color: rgba(239, 68, 68, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
-
-    .sub-item-row {
+      letter-spacing: 0.8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      font-size: 0.85rem;
     }
-    .sub-item-row:last-child { border-bottom: none; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat-number {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--text);
+      margin: 4px 0;
+    }
+
+    .stat-subtext {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
 
     .progress-bar-bg {
-      background-color: var(--border);
-      height: 8px;
-      border-radius: 4px;
+      background: #2a2d36;
+      border-radius: 6px;
+      height: 10px;
       overflow: hidden;
-      margin-top: 0.5rem;
+      margin: 8px 0;
     }
 
     .progress-bar-fill {
-      background-color: var(--accent-green);
+      background: var(--primary);
       height: 100%;
-      border-radius: 4px;
-      transition: width 0.3s ease;
+      width: 0%;
+      transition: width 0.3s;
     }
 
-    .nav-bar {
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 14px;
+      background-color: #0f1013;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1.05rem;
+      margin-bottom: 14px;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 15px;
+      background-color: var(--primary);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:active { background-color: var(--primary-hover); }
+
+    .btn-secondary {
+      background: #2a2d36;
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      border: 1px solid #3a3f4d;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      width: 100%;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .btn-install {
+      background: linear-gradient(135deg, #ffaa00, #ff8800);
+      color: #000;
+      padding: 15px;
+      font-size: 1rem;
+      font-weight: 800;
+      border-radius: 8px;
+      border: none;
+      width: 100%;
+      cursor: pointer;
+      margin-bottom: 12px;
+      display: block;
+      text-align: center;
+    }
+
+    .month-selector {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 8px 14px;
+    }
+
+    .month-selector button {
+      background: none;
+      border: none;
+      color: var(--primary);
+      font-size: 1.4rem;
+      cursor: pointer;
+      padding: 6px 14px;
+    }
+
+    .month-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .day-row {
+      background: #16181e;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .day-row.is-sunday { opacity: 0.6; }
+    .day-row.is-off { border-left: 3px solid var(--danger); }
+    .day-row.has-sales { border-left: 3px solid var(--primary); }
+
+    .day-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    .day-name { font-weight: 700; }
+
+    .day-amount {
+      font-weight: 800;
+      color: var(--primary);
+      font-size: 1.05rem;
+    }
+
+    .day-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+
+    .day-tag {
+      background: #242731;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: #cbd2df;
+    }
+
+    .day-details {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--card-border);
+      display: none;
+    }
+
+    .day-details.open { display: block; }
+
+    .rec-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      font-size: 0.85rem;
+      border-bottom: 1px solid #20232b;
+    }
+
+    .rec-del-btn {
+      color: var(--danger);
+      background: none;
+      border: none;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+
+    .toast {
+      position: fixed;
+      top: 65px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: var(--success);
+      color: #000;
+      font-weight: 700;
+      padding: 10px 20px;
+      border-radius: 30px;
+      z-index: 100;
+      display: none;
+    }
+
+    nav {
       position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
-      background-color: var(--bg-surface);
-      border-top: 1px solid var(--border);
+      background-color: var(--nav-bg);
+      border-top: 1px solid var(--card-border);
       display: flex;
       justify-content: space-around;
-      padding: 0.5rem 0;
-      z-index: 20;
+      padding: 8px 0;
+      z-index: 50;
     }
 
-    .nav-btn {
+    .nav-item {
       background: none;
       border: none;
       color: var(--text-muted);
+      font-size: 0.75rem;
       display: flex;
       flex-direction: column;
       align-items: center;
-      font-size: 0.75rem;
-      padding: 0.35rem 0.6rem;
+      gap: 4px;
       cursor: pointer;
+      flex: 1;
+      padding: 4px 0;
     }
 
-    .nav-btn.active { color: var(--accent); font-weight: 600; }
+    .nav-item.active {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .nav-icon { font-size: 1.25rem; }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>Koloběžníkův rozpočet</h1>
-    <div class="period-selector">
-      <button id="btn-prev-period" class="period-btn">◀</button>
-      <span id="period-label" class="period-label">Načítám...</span>
-      <button id="btn-next-period" class="period-btn">▶</button>
-    </div>
+    <h1>Koloběžníkovy služby</h1>
   </header>
 
-  <main id="app-container">
-    <div class="card">
-      <div class="card-title">Stav</div>
-      <div class="metric-value" style="color: var(--accent);">Načítám aplikaci...</div>
-    </div>
+  <div id="toast" class="toast">Uloženo!</div>
+
+  <main>
+    <!-- 1. PŘEHLED -->
+    <section id="tab-overview" class="tab-content active">
+      <div class="month-selector">
+        <button type="button" onclick="changeMonth(-1)">◀</button>
+        <div class="month-title" id="current-period-title">Načítám...</div>
+        <button type="button" onclick="changeMonth(1)">▶</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Měsíční cíl</span>
+          <span id="target-percent" style="color: var(--primary);">0 %</span>
+        </div>
+        <div class="stat-number" id="target-sold">0 Kč</div>
+        <div class="progress-bar-bg">
+          <div id="target-progress-fill" class="progress-bar-fill"></div>
+        </div>
+        <div class="stat-subtext" style="display:flex; justify-content:space-between; margin-top:4px;">
+          <span id="target-total-display">Cíl: nenastaven</span>
+          <span id="target-remaining">Zbývá: 0 Kč</span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding:8px 10px; background:#16181e; border-radius:8px; border:1px solid var(--card-border);">
+          <span style="font-size:0.85rem; color:var(--text-muted);">Do konce měsíce:</span>
+          <span id="days-remaining-badge" style="font-size:0.9rem; font-weight:700; color:var(--primary);">...</span>
+        </div>
+
+        <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--card-border);">
+          <div style="font-size:0.85rem; color:var(--text-muted);">Potřebný denní průměr pro splnění (od zítřka):</div>
+          <div style="font-size:1.3rem; font-weight:800; color:var(--accent); margin:4px 0;" id="needed-daily-rate">0 Kč / den</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);" id="remaining-workdays-info">
+            Počítá se s pracovními dny od zítřka (So = 0.5, Ne = volno, svátky vyloučeny).
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Dnes prodáno</div>
+          <div class="stat-number" id="today-total" style="font-size:1.4rem;">0 Kč</div>
+          <div class="stat-subtext" id="today-count">0 služeb</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Aktivní dny</div>
+          <div class="stat-number" id="active-days-count" style="font-size:1.4rem;">0</div>
+          <div class="stat-subtext" id="active-days-avg">Průměr: 0 Kč/den</div>
+        </div>
+      </div>
+
+      <button type="button" class="btn" onclick="switchTab('tab-record')">+ Zapsat novou službu</button>
+    </section>
+
+    <!-- 2. ZAPSAT -->
+    <section id="tab-record" class="tab-content">
+      <div class="card">
+        <div class="card-title">Nový záznam</div>
+        <form id="service-form" onsubmit="saveRecord(event)">
+          <label for="record-date">Datum</label>
+          <input type="date" id="record-date" required>
+
+          <label for="record-type">Typ služby</label>
+          <select id="record-type" onchange="handleTypeSelectChange(this)" required>
+          </select>
+
+          <div id="custom-type-container" style="display:none; margin-bottom:14px;">
+            <label for="custom-type-input" style="color:var(--primary);">Název nového typu služby</label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="custom-type-input" placeholder="např. Fólie na mobil" style="margin-bottom:0;">
+              <button type="button" class="btn" style="width:auto; padding:0 18px;" onclick="addCustomType()">Přidat</button>
+            </div>
+          </div>
+
+          <label for="record-amount">Částka v Kč</label>
+          <input type="number" id="record-amount" placeholder="např. 499" min="1" step="1" required inputmode="numeric">
+
+          <label for="record-note">Poznámka (volitelné)</label>
+          <input type="text" id="record-note" placeholder="např. číslo účtenky nebo model">
+
+          <button type="submit" id="submit-btn" class="btn">Uložit službu</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 3. DNY V MĚSÍCI -->
+    <section id="tab-history" class="tab-content">
+      <div class="month-selector">
+        <button type="button" onclick="changeMonth(-1)">◀</button>
+        <div class="month-title" id="history-period-title">Načítám...</div>
+        <button type="button" onclick="changeMonth(1)">▶</button>
+      </div>
+
+      <div class="card" style="padding:10px 14px; margin-bottom:12px; font-size:0.8rem; color:var(--text-muted);">
+        Klepnutím na den rozbalíš jeho služby nebo nastavíš svátek / volno.
+      </div>
+
+      <div id="days-container"></div>
+    </section>
+
+    <!-- 4. STATISTIKY -->
+    <section id="tab-stats" class="tab-content">
+      <div class="card">
+        <div class="card-title">Rozpad služeb v měsíci</div>
+        <div id="stats-by-type">Načítám...</div>
+      </div>
+    </section>
+
+    <!-- 5. NASTAVENÍ A ZÁLOHY -->
+    <section id="tab-settings" class="tab-content">
+      <div class="card">
+        <div class="card-title">Měsíční cíl</div>
+        <label for="target-input">Cílová částka v Kč pro vybraný měsíc</label>
+        <input type="number" id="target-input" placeholder="např. 88000" min="0" step="1000" inputmode="numeric">
+        <button type="button" class="btn" onclick="saveMonthlyTarget()">Uložit cíl měsíce</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Správa vlastních typů služeb</div>
+        <div id="custom-types-list" style="margin-bottom:10px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Záloha do telefonu a Dropboxu</div>
+        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:12px;">
+          Ulož si zálohu do mobilu a rovnou ji přes nabídku sdílení odešli na svůj Dropbox.
+        </p>
+
+        <button type="button" class="btn-secondary" onclick="exportBackupAndShare()">
+          ☁️ Stáhnout zálohu a poslat do Dropboxu
+        </button>
+
+        <button type="button" class="btn-secondary" onclick="exportToCSV()">
+          📊 Exportovat tabulku pro Excel (CSV)
+        </button>
+
+        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--card-border);">
+          <label style="color:var(--primary);">Nahrát zálohu ze souboru:</label>
+          <input type="file" id="import-file-input" accept=".json" style="display:none;" onchange="handleFileImport(event)">
+          <button type="button" class="btn-secondary" onclick="document.getElementById('import-file-input').click()">
+            📤 Vybrat a obnovit soubor zálohy
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Pracovní kalendář</div>
+        <p style="color:var(--text-muted); font-size:0.85rem; line-height:1.4;">
+          Výpočet denního tempa automaticky počítá zbývající dny <strong>od zítřka</strong>:<br>
+          • <strong>Po až Pá:</strong> 1 pracovní den<br>
+          • <strong>Sobota:</strong> 0,5 dne (půlden)<br>
+          • <strong>Neděle:</strong> volno (0 dní)<br>
+          • <strong>Svátky / Vlastní volno:</strong> označíš klepnutím na tlačítko u konkrétního dne v záložce „Dny v měsíci“.
+        </p>
+      </div>
+    </section>
   </main>
 
-  <nav class="nav-bar">
-    <button id="nav-dashboard" class="nav-btn active">Přehled</button>
-    <button id="nav-expenses" class="nav-btn">Platby</button>
-    <button id="nav-debts" class="nav-btn">Dluhy & Pohledávky</button>
-    <button id="nav-goals" class="nav-btn">Cíle</button>
-    <button id="nav-settings" class="nav-btn">Nastavení</button>
+  <nav>
+    <button type="button" class="nav-item active" onclick="switchTab('tab-overview', this)">
+      <span class="nav-icon">📊</span>
+      <span>Přehled</span>
+    </button>
+    <button type="button" class="nav-item" onclick="switchTab('tab-record', this)">
+      <span class="nav-icon">➕</span>
+      <span>Zapsat</span>
+    </button>
+    <button type="button" class="nav-item" onclick="switchTab('tab-history', this)">
+      <span class="nav-icon">📅</span>
+      <span>Dny v měsíci</span>
+    </button>
+    <button type="button" class="nav-item" onclick="switchTab('tab-stats', this)">
+      <span class="nav-icon">📈</span>
+      <span>Statistiky</span>
+    </button>
+    <button type="button" class="nav-item" onclick="switchTab('tab-settings', this)">
+      <span class="nav-icon">⚙️</span>
+      <span>Nastavení</span>
+    </button>
   </nav>
 
   <script>
-    // --- PWA INSTALACE A SERVICE WORKER ---
-    let deferredPrompt = null;
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      const installBtn = document.getElementById('btn-install-pwa');
-      if (installBtn) installBtn.style.display = 'block';
-    });
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => {
-          console.warn('SW registrace:', err);
-        });
-      });
-    }
-
-    // --- DATABÁZE A ÚLOŽIŠTĚ ---
-    const DB_NAME = 'KolobeznikRozpocetDB';
-    const DB_VERSION = 2;
-
-    let isStoragePersistent = false;
-    async function requestPersistence() {
-      if (navigator.storage && navigator.storage.persist) {
-        isStoragePersistent = await navigator.storage.persist();
-      }
-    }
-    requestPersistence();
-
-    function toCents(amount) {
-      if (amount === null || amount === undefined || amount === '') return 0;
-      if (typeof amount === 'string') amount = amount.replace(/\s/g, '').replace(',', '.');
-      const num = parseFloat(amount);
-      return isNaN(num) ? 0 : Math.round(num * 100);
-    }
-
-    function formatKc(cents) {
-      const crowns = (cents || 0) / 100;
-      return new Intl.NumberFormat('cs-CZ', {
-        style: 'currency',
-        currency: 'CZK',
-        minimumFractionDigits: crowns % 1 === 0 ? 0 : 2,
-        maximumFractionDigits: 2
-      }).format(crowns);
-    }
-
-    function openDB() {
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onerror = () => reject(req.error);
-        req.onsuccess = () => resolve(req.result);
-        req.onupgradeneeded = (e) => {
-          const db = e.target.result;
-          if (!db.objectStoreNames.contains('recurring_templates')) db.createObjectStore('recurring_templates', { keyPath: 'id', autoIncrement: true });
-          if (!db.objectStoreNames.contains('monthly_expenses')) {
-            const s = db.createObjectStore('monthly_expenses', { keyPath: 'id', autoIncrement: true });
-            s.createIndex('period', 'period', { unique: false });
-          }
-          if (!db.objectStoreNames.contains('incomes')) {
-            const s = db.createObjectStore('incomes', { keyPath: 'id', autoIncrement: true });
-            s.createIndex('period', 'period', { unique: false });
-          }
-          if (!db.objectStoreNames.contains('debts_payable')) db.createObjectStore('debts_payable', { keyPath: 'id', autoIncrement: true });
-          if (!db.objectStoreNames.contains('debts_receivable')) db.createObjectStore('debts_receivable', { keyPath: 'id', autoIncrement: true });
-          if (!db.objectStoreNames.contains('savings_goals')) db.createObjectStore('savings_goals', { keyPath: 'id', autoIncrement: true });
-          if (!db.objectStoreNames.contains('accounts')) db.createObjectStore('accounts', { keyPath: 'id', autoIncrement: true });
-        };
-      });
-    }
-
-    async function dbGetAll(storeName) {
-      const db = await openDB();
-      return new Promise((res, rej) => {
-        const tx = db.transaction(storeName, 'readonly');
-        const req = tx.objectStore(storeName).getAll();
-        req.onsuccess = () => res(req.result);
-        req.onerror = () => rej(req.error);
-      });
-    }
-
-    async function dbAdd(storeName, item) {
-      const db = await openDB();
-      return new Promise((res, rej) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        const req = tx.objectStore(storeName).add(item);
-        req.onsuccess = () => res(req.result);
-        req.onerror = () => rej(req.error);
-      });
-    }
-
-    async function dbPut(storeName, item) {
-      const db = await openDB();
-      return new Promise((res, rej) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        const req = tx.objectStore(storeName).put(item);
-        req.onsuccess = () => res(req.result);
-        req.onerror = () => rej(req.error);
-      });
-    }
-
-    async function dbDelete(storeName, id) {
-      const db = await openDB();
-      return new Promise((res, rej) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        const req = tx.objectStore(storeName).delete(id);
-        req.onsuccess = () => res(req.result);
-        req.onerror = () => rej(req.error);
-      });
-    }
-
-    async function clearStore(storeName) {
-      const db = await openDB();
-      return new Promise((res, rej) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        const req = tx.objectStore(storeName).clear();
-        req.onsuccess = () => res();
-        req.onerror = () => rej(req.error);
-      });
-    }
-
-    async function seedInitialData(forceReload = false) {
-      const existingReceivables = await dbGetAll('debts_receivable');
-      
-      if (existingReceivables.length === 0 || forceReload) {
-        await clearStore('debts_receivable');
-
-        const initialList = [
-          { debtor: 'KOV', category: 'Půjčky', originalAmountCents: toCents('3400'), remainingAmountCents: toCents('3400'), history: [] },
-          { debtor: 'KOV', category: 'Elektřina a drogerie', originalAmountCents: toCents('2750'), remainingAmountCents: toCents('2750'), history: [] },
-          { debtor: 'KOV', category: 'Fólie na bazén', originalAmountCents: toCents('500'), remainingAmountCents: toCents('500'), history: [] },
-
-          { debtor: 'JIŘÍ', category: 'Půjčky', originalAmountCents: toCents('0'), remainingAmountCents: toCents('0'), history: [] },
-          { debtor: 'JIŘÍ', category: 'Elektřina a drogerie', originalAmountCents: toCents('1500'), remainingAmountCents: toCents('250'), history: [{ date: '2026-10-13', amountCents: toCents('1250'), type: 'payment', note: 'Zaplaceno na elektřinu a drogerii' }] },
-          { debtor: 'JIŘÍ', category: 'Fólie na bazén', originalAmountCents: toCents('500'), remainingAmountCents: toCents('500'), history: [] },
-
-          { debtor: 'MAGDA', category: 'Půjčky', originalAmountCents: toCents('700'), remainingAmountCents: toCents('700'), history: [] },
-          { debtor: 'MAGDA', category: 'Elektřina a drogerie', originalAmountCents: toCents('1500'), remainingAmountCents: toCents('1500'), history: [] },
-          { debtor: 'MAGDA', category: 'Fólie na bazén', originalAmountCents: toCents('500'), remainingAmountCents: toCents('500'), history: [] }
-        ];
-
-        for (const item of initialList) {
-          await dbAdd('debts_receivable', item);
-        }
-      }
-
-      const existingTemplates = await dbGetAll('recurring_templates');
-      if (existingTemplates.length === 0) {
-        const defaultExpenses = [
-          { name: 'Česká televize', amountCents: toCents('150'), category: 'Bydlení a média', dueDay: 15, active: true },
-          { name: 'Vodafone – telefon', amountCents: toCents('266'), category: 'Komunikace', dueDay: 15, active: true },
-          { name: 'T-Mobile – internet', amountCents: toCents('450'), category: 'Komunikace', dueDay: 20, active: true },
-          { name: 'PVZP – pojištění', amountCents: toCents('400'), category: 'Pojištění', dueDay: 20, active: true },
-          { name: 'AvaFin/Crediton – splátka', amountCents: toCents('1100'), category: 'Dluhy a splátky', dueDay: 10, isLoanRepayment: true, active: true },
-          { name: 'Provident – splátka', amountCents: toCents('1500'), category: 'Dluhy a splátky', dueDay: 10, isLoanRepayment: true, active: true },
-          { name: 'Penzijní příspěvek', amountCents: toCents('100'), category: 'Spoření', dueDay: 15, active: true },
-          { name: 'ČEZ – záloha na elektřinu', amountCents: toCents('3000'), category: 'Energie', dueDay: 15, active: true },
-          { name: 'Terapie', amountCents: toCents('2000'), category: 'Zdraví a péče', dueDay: 1, active: true },
-          { name: 'Investown', amountCents: toCents('500'), category: 'Investice', dueDay: 10, active: true },
-          { name: 'ChatGPT Go', amountCents: toCents('200'), category: 'Předplatné a software', dueDay: 1, active: true },
-          { name: 'SIPO', amountCents: toCents('77'), category: 'Bydlení', dueDay: 12, active: true },
-          { name: 'Spotify', amountCents: toCents('185'), category: 'Zábava', dueDay: 5, active: true },
-          { name: 'Google AI Pro', amountCents: toCents('139,90'), category: 'Předplatné a software', dueDay: 8, active: true }
-        ];
-        for (const item of defaultExpenses) await dbAdd('recurring_templates', item);
-
-        await dbAdd('debts_payable', { name: 'Provident', principalRemainingCents: toCents('77327,33'), monthlyPaymentCents: toCents('1500'), dueDay: 10 });
-        await dbAdd('debts_payable', { name: 'AvaFin/Crediton', principalRemainingCents: toCents('19524'), monthlyPaymentCents: toCents('1100'), dueDay: 10 });
-
-        await dbAdd('savings_goals', { name: 'Celková finanční rezerva a velké výdaje', targetCents: toCents('180000'), allocatedCents: 0 });
-        await dbAdd('savings_goals', { name: 'Zubní náhrada', targetCents: toCents('30000'), allocatedCents: 0 });
-        await dbAdd('savings_goals', { name: 'Cestování do Itálie, Monaka a Nice', targetCents: toCents('16000'), allocatedCents: 0 });
-        await dbAdd('savings_goals', { name: 'Nová koloběžka', targetCents: toCents('25000'), allocatedCents: 0 });
-        await dbAdd('savings_goals', { name: 'Brikety na zimu', targetCents: toCents('20000'), allocatedCents: 0 });
-        await dbAdd('savings_goals', { name: 'Právní výdaje', targetCents: toCents('0'), allocatedCents: 0 });
-      }
-    }
-
-    // --- SPRÁVA OBDOBÍ ---
-    const czechMonths = ["Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"];
     let viewDate = new Date();
+    const DAY_NAMES = ["Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota"];
 
-    function formatPeriodKey(d) {
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    }
+    const DEFAULT_TYPES = [
+      "Bleskovka",
+      "Delší záruka",
+      "Nahodilé poškození",
+      "Doprava",
+      "Instalace",
+      "Instalace TV na stěnu",
+      "Instalace počítače"
+    ];
 
-    function updatePeriodLabel() {
-      document.getElementById('period-label').textContent = `${czechMonths[viewDate.getMonth()]} ${viewDate.getFullYear()}`;
-    }
-
-    document.getElementById('btn-prev-period').addEventListener('click', () => {
-      viewDate.setMonth(viewDate.getMonth() - 1);
-      updatePeriodLabel();
-      render();
-    });
-
-    document.getElementById('btn-next-period').addEventListener('click', () => {
-      viewDate.setMonth(viewDate.getMonth() + 1);
-      updatePeriodLabel();
-      render();
-    });
-
-    async function ensureMonthInitialized(periodKey) {
-      const allMonthly = await dbGetAll('monthly_expenses');
-      const monthItems = allMonthly.filter(item => item.period === periodKey);
-      if (monthItems.length > 0) return monthItems;
-
-      const templates = await dbGetAll('recurring_templates');
-      const created = [];
-      for (const t of templates) {
-        if (t.active === false) continue;
-        const item = {
-          templateId: t.id,
-          name: t.name,
-          category: t.category,
-          plannedAmountCents: t.amountCents,
-          paidAmountCents: 0,
-          dueDay: t.dueDay || 15,
-          period: periodKey,
-          isPaid: false,
-          isLoanRepayment: !!t.isLoanRepayment
-        };
-        const id = await dbAdd('monthly_expenses', item);
-        item.id = id;
-        created.push(item);
+    function getStorageData(key, fallback) {
+      try {
+        const d = localStorage.getItem(key);
+        return d ? JSON.parse(d) : fallback;
+      } catch (e) {
+        return fallback;
       }
-      return created;
     }
 
-    let activeTab = 'dashboard';
-
-    document.getElementById('nav-dashboard').addEventListener('click', () => setTab('dashboard'));
-    document.getElementById('nav-expenses').addEventListener('click', () => setTab('expenses'));
-    document.getElementById('nav-debts').addEventListener('click', () => setTab('debts'));
-    document.getElementById('nav-goals').addEventListener('click', () => setTab('goals'));
-    document.getElementById('nav-settings').addEventListener('click', () => setTab('settings'));
-
-    function setTab(tab) {
-      activeTab = tab;
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      if (tab === 'dashboard') document.getElementById('nav-dashboard').classList.add('active');
-      if (tab === 'expenses') document.getElementById('nav-expenses').classList.add('active');
-      if (tab === 'debts') document.getElementById('nav-debts').classList.add('active');
-      if (tab === 'goals') document.getElementById('nav-goals').classList.add('active');
-      if (tab === 'settings') document.getElementById('nav-settings').classList.add('active');
-      render();
+    function setStorageData(key, val) {
+      try {
+        localStorage.setItem(key, JSON.stringify(val));
+      } catch (e) {}
     }
 
-    // --- ZÁLOŽKA 0: DASHBOARD ---
-    async function renderDashboard() {
-      const curPeriod = formatPeriodKey(viewDate);
-      const allExpenses = await dbGetAll('monthly_expenses');
-      const monthExpenses = allExpenses.filter(e => e.period === curPeriod);
+    function getMonthKey(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      return `${y}-${m}`;
+    }
 
-      let unpaidExpensesCents = 0;
-      let paidExpensesCents = 0;
-      let totalPlannedCents = 0;
+    function changeMonth(delta) {
+      viewDate.setMonth(viewDate.getMonth() + delta);
+      renderCurrentView();
+    }
 
-      for (const e of monthExpenses) {
-        totalPlannedCents += e.plannedAmountCents;
-        if (e.isPaid) paidExpensesCents += e.plannedAmountCents;
-        else unpaidExpensesCents += e.plannedAmountCents;
-      }
+    function getAllTypes() {
+      const custom = getStorageData("ks_custom_types", []);
+      return [...DEFAULT_TYPES, ...custom];
+    }
 
-      const allIncomes = await dbGetAll('incomes');
-      const monthIncomes = allIncomes.filter(i => i.period === curPeriod);
-      const totalIncomesCents = monthIncomes.reduce((sum, i) => sum + i.amountCents, 0);
-      const netCashFlowCents = totalIncomesCents - paidExpensesCents;
-
-      const debts = await dbGetAll('debts_payable');
-      const totalDebtCents = debts.reduce((sum, d) => sum + d.principalRemainingCents, 0);
-
-      const receivables = await dbGetAll('debts_receivable');
-      const totalReceivableCents = receivables.reduce((sum, r) => sum + r.remainingAmountCents, 0);
-
-      const goals = await dbGetAll('savings_goals');
-      const totalAllocatedGoalsCents = goals.reduce((sum, g) => sum + (g.allocatedCents || 0), 0);
-
-      const netWorthCents = totalReceivableCents + totalAllocatedGoalsCents - totalDebtCents;
-
-      const container = document.getElementById('app-container');
-      container.innerHTML = `
-        <div class="card" style="border-left: 4px solid var(--accent);">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-              <div class="card-title">Měsíční bilance (${czechMonths[viewDate.getMonth()]} ${viewDate.getFullYear()})</div>
-              <div class="metric-value" style="color: ${netCashFlowCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
-                ${netCashFlowCents >= 0 ? '+' : ''}${formatKc(netCashFlowCents)}
-              </div>
-              <div class="metric-sub">Čistý tok (přijaté příjmy − zaplacené výdaje)</div>
-            </div>
-            <button id="dash-btn-add-income" class="btn btn-success" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">+ Příjem</button>
-          </div>
-
-          <div class="grid-3" style="margin-top: 0.85rem;">
-            <div style="background-color: rgba(255, 255, 255, 0.03); padding: 0.5rem; border-radius: 8px;">
-              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Příjmy</div>
-              <div style="font-size: 0.95rem; font-weight: bold; color: var(--accent-green);">${formatKc(totalIncomesCents)}</div>
-            </div>
-            <div style="background-color: rgba(255, 255, 255, 0.03); padding: 0.5rem; border-radius: 8px;">
-              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Zaplaceno</div>
-              <div style="font-size: 0.95rem; font-weight: bold; color: var(--text-main);">${formatKc(paidExpensesCents)}</div>
-            </div>
-            <div style="background-color: rgba(255, 255, 255, 0.03); padding: 0.5rem; border-radius: 8px;">
-              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Zbývá</div>
-              <div style="font-size: 0.95rem; font-weight: bold; color: var(--accent-red);">${formatKc(unpaidExpensesCents)}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="grid-2">
-          <div class="card" style="cursor: pointer;" id="dash-card-debts">
-            <div class="card-title">Moje dluhy</div>
-            <div class="metric-value" style="color: var(--accent-red); font-size: 1.15rem;">${formatKc(totalDebtCents)}</div>
-            <div class="metric-sub">Provident & AvaFin</div>
-          </div>
-
-          <div class="card" style="cursor: pointer;" id="dash-card-receivables">
-            <div class="card-title">Dluží mně</div>
-            <div class="metric-value" style="color: var(--accent-green); font-size: 1.15rem;">${formatKc(totalReceivableCents)}</div>
-            <div class="metric-sub">KOV, JIŘÍ, MAGDA</div>
-          </div>
-        </div>
-
-        <div class="card" style="cursor: pointer;" id="dash-card-goals">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-              <div class="card-title">Úspory a finanční cíle</div>
-              <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalAllocatedGoalsCents)}</div>
-              <div class="metric-sub">${goals.length} aktivních cílů (rezerva, zuby, koloběžka...)</div>
-            </div>
-            <button class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">Otevřít</button>
-          </div>
-        </div>
-
-        <div class="card" style="border: 1px solid rgba(255, 255, 255, 0.1);">
-          <div class="card-title">Čistá bilance závazků a pohledávek</div>
-          <div class="metric-value" style="color: ${netWorthCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
-            ${formatKc(netWorthCents)}
-          </div>
-          <div class="metric-sub">Rozdíl: (pohledávky + úspory) mínus tvé evidované dluhy</div>
-        </div>
-      `;
-
-      document.getElementById('dash-btn-add-income').addEventListener('click', async () => {
-        const title = prompt('Popis příjmu (Výplata, Odměny, Prodej):', 'Výplata');
-        if (!title || !title.trim()) return;
-        const valStr = prompt(`Částka pro "${title}" v Kč:`);
-        if (!valStr || !valStr.trim()) return;
-
-        await dbAdd('incomes', {
-          title: title.trim(),
-          amountCents: toCents(valStr),
-          period: curPeriod,
-          date: new Date().toISOString().slice(0, 10)
-        });
-        await render();
+    function updateTypeDropdown(selectedVal) {
+      const select = document.getElementById("record-type");
+      const allTypes = getAllTypes();
+      
+      let html = "";
+      allTypes.forEach((t, i) => {
+        html += `<option value="${escapeHtml(t)}">${i + 1}. ${escapeHtml(t)}</option>`;
       });
+      html += `<option value="__custom__" style="color:var(--primary); font-weight:bold;">+ Vlastní typ služby...</option>`;
 
-      document.getElementById('dash-card-debts').addEventListener('click', () => setTab('debts'));
-      document.getElementById('dash-card-receivables').addEventListener('click', () => setTab('debts'));
-      document.getElementById('dash-card-goals').addEventListener('click', () => setTab('goals'));
+      select.innerHTML = html;
+
+      if (selectedVal && allTypes.includes(selectedVal)) {
+        select.value = selectedVal;
+      }
     }
 
-    // --- ZÁLOŽKA 1: PLATBY ---
-    async function renderExpenses() {
-      const curPeriod = formatPeriodKey(viewDate);
-      const allExpenses = await dbGetAll('monthly_expenses');
-      const monthExpenses = allExpenses.filter(e => e.period === curPeriod);
+    function handleTypeSelectChange(selectEl) {
+      const container = document.getElementById("custom-type-container");
+      if (selectEl.value === "__custom__") {
+        container.style.display = "block";
+        document.getElementById("custom-type-input").focus();
+      } else {
+        container.style.display = "none";
+      }
+    }
 
-      const allIncomes = await dbGetAll('incomes');
-      const monthIncomes = allIncomes.filter(i => i.period === curPeriod);
+    function addCustomType() {
+      const input = document.getElementById("custom-type-input");
+      const val = input.value.trim();
+      if (!val) {
+        alert("Zadej název nové služby.");
+        return;
+      }
 
-      let unpaidCents = 0;
-      let paidCents = 0;
-      let paidCount = 0;
+      let custom = getStorageData("ks_custom_types", []);
+      if (DEFAULT_TYPES.includes(val) || custom.includes(val)) {
+        alert("Tento typ služby již existuje.");
+        return;
+      }
 
-      for (const e of monthExpenses) {
-        if (e.isPaid) {
-          paidCents += e.plannedAmountCents;
-          paidCount++;
+      custom.push(val);
+      setStorageData("ks_custom_types", custom);
+
+      input.value = "";
+      document.getElementById("custom-type-container").style.display = "none";
+
+      updateTypeDropdown(val);
+      renderCustomTypesList();
+      showToast(`Typ „${val}“ byl přidán`);
+    }
+
+    function deleteCustomType(typeToDelete) {
+      if (!confirm(`Chceš odebrat typ „${typeToDelete}“ z nabídky? (Existující záznamy s touto službou zůstanou v historii zachovány).`)) return;
+
+      let custom = getStorageData("ks_custom_types", []);
+      custom = custom.filter(t => t !== typeToDelete);
+      setStorageData("ks_custom_types", custom);
+
+      updateTypeDropdown();
+      renderCustomTypesList();
+      showToast("Typ služby byl odebrán");
+    }
+
+    function renderCustomTypesList() {
+      const container = document.getElementById("custom-types-list");
+      const custom = getStorageData("ks_custom_types", []);
+
+      if (custom.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted); font-size:0.85rem;">Žádné vlastní typy nebyly vytvořeny.</p>';
+        return;
+      }
+
+      let html = "";
+      custom.forEach(t => {
+        html += `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #20232b; font-size:0.9rem;">
+            <span>${escapeHtml(t)}</span>
+            <button type="button" class="rec-del-btn" style="font-size:0.9rem;" onclick="deleteCustomType('${escapeHtml(t)}')">✕ Odebrat</button>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function renderCurrentView() {
+      const monthKey = getMonthKey(viewDate);
+      const monthNames = ["Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"];
+      const titleStr = `${monthNames[viewDate.getMonth()]} ${viewDate.getFullYear()}`;
+
+      document.getElementById("current-period-title").textContent = titleStr;
+      document.getElementById("history-period-title").textContent = titleStr;
+
+      const allRecords = getStorageData("ks_records", []);
+      const targets = getStorageData("ks_targets", {});
+      const holidaysList = getStorageData("ks_holidays", []);
+      const holidays = new Set(holidaysList);
+
+      const targetAmount = targets[monthKey] || 0;
+      const monthRecords = allRecords.filter(r => r.date && r.date.startsWith(monthKey));
+
+      renderOverview(monthRecords, targetAmount, holidays);
+      renderDaysList(monthKey, monthRecords, holidays);
+      renderStats(monthRecords);
+      renderCustomTypesList();
+    }
+
+    function renderOverview(monthRecords, target, holidays) {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const isCurrentMonth = getMonthKey(new Date()) === getMonthKey(viewDate);
+
+      let todaySum = 0;
+      let todayCount = 0;
+      monthRecords.forEach(r => {
+        if (r.date === todayStr) {
+          todaySum += r.amount;
+          todayCount++;
+        }
+      });
+      document.getElementById("today-total").textContent = todaySum.toLocaleString("cs-CZ") + " Kč";
+      document.getElementById("today-count").textContent = todayCount + " služeb";
+
+      const daysWithSales = new Set(monthRecords.map(r => r.date));
+      const totalMonthSum = monthRecords.reduce((acc, r) => acc + r.amount, 0);
+      const activeCount = daysWithSales.size;
+      const avgPerActiveDay = activeCount > 0 ? Math.round(totalMonthSum / activeCount) : 0;
+
+      document.getElementById("active-days-count").textContent = activeCount;
+      document.getElementById("active-days-avg").textContent = "Průměr: " + avgPerActiveDay.toLocaleString("cs-CZ") + " Kč/den";
+
+      document.getElementById("target-sold").textContent = totalMonthSum.toLocaleString("cs-CZ") + " Kč";
+      document.getElementById("target-input").value = target > 0 ? target : "";
+
+      const year = viewDate.getFullYear();
+      const month = viewDate.getMonth();
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const currentDay = isCurrentMonth ? new Date().getDate() : 1;
+      const calDaysLeft = Math.max(0, lastDay - currentDay);
+
+      const remWorkdays = calculateRemainingWorkdays(viewDate, holidays, isCurrentMonth);
+
+      const badge = document.getElementById("days-remaining-badge");
+      if (isCurrentMonth) {
+        badge.textContent = `${calDaysLeft} ${getDaysWord(calDaysLeft)} (${remWorkdays.toFixed(1)} prac.)`;
+      } else {
+        badge.textContent = `Celkem ${lastDay} dní (${remWorkdays.toFixed(1)} prac.)`;
+      }
+
+      if (target > 0) {
+        const remaining = Math.max(0, target - totalMonthSum);
+        const realPct = Math.round((totalMonthSum / target) * 100);
+        const fillPct = Math.min(100, realPct);
+
+        document.getElementById("target-total-display").textContent = "Cíl: " + target.toLocaleString("cs-CZ") + " Kč";
+        document.getElementById("target-remaining").textContent = "Zbývá: " + remaining.toLocaleString("cs-CZ") + " Kč";
+        document.getElementById("target-percent").textContent = realPct + " %";
+        document.getElementById("target-progress-fill").style.width = fillPct + "%";
+
+        if (remaining <= 0) {
+          document.getElementById("needed-daily-rate").textContent = "CÍL SPLNĚN! 🎉";
+          document.getElementById("remaining-workdays-info").textContent = "Měsíční cíl je úspěšně pokořen.";
+        } else if (remWorkdays > 0) {
+          const neededPerDay = Math.round(remaining / remWorkdays);
+          document.getElementById("needed-daily-rate").textContent = neededPerDay.toLocaleString("cs-CZ") + " Kč / den";
+          document.getElementById("remaining-workdays-info").textContent = `Zbývá ${remWorkdays.toFixed(1)} prac. dní od zítřka (Po–Pá = 1, So = 0.5, Ne/svátky = 0).`;
         } else {
-          unpaidCents += e.plannedAmountCents;
+          document.getElementById("needed-daily-rate").textContent = remaining.toLocaleString("cs-CZ") + " Kč";
+          document.getElementById("remaining-workdays-info").textContent = "Žádné zbývající pracovní dny v tomto měsíci.";
+        }
+      } else {
+        document.getElementById("target-total-display").textContent = "Cíl: nenastaven";
+        document.getElementById("target-remaining").textContent = "Zbývá: –";
+        document.getElementById("target-percent").textContent = "– %";
+        document.getElementById("target-progress-fill").style.width = "0%";
+        document.getElementById("needed-daily-rate").textContent = "Nastav v záložce Nastavení";
+        document.getElementById("remaining-workdays-info").textContent = "Zadej cílovou částku a uvidíš potřebný denní průměr.";
+      }
+    }
+
+    function getDaysWord(n) {
+      if (n === 1) return "den";
+      if (n >= 2 && n <= 4) return "dny";
+      return "dní";
+    }
+
+    function calculateRemainingWorkdays(d, holidays, isCurrentMonth) {
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      
+      const startDay = isCurrentMonth ? (new Date().getDate() + 1) : 1;
+
+      let workdays = 0;
+      for (let day = startDay; day <= lastDay; day++) {
+        const curDate = new Date(year, month, day);
+        const dayOfWeek = curDate.getDay();
+        const curDateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+        if (holidays.has(curDateStr)) continue;
+
+        if (dayOfWeek === 0) {
+          continue;
+        } else if (dayOfWeek === 6) {
+          workdays += 0.5;
+        } else {
+          workdays += 1.0;
+        }
+      }
+      return workdays;
+    }
+
+    function renderDaysList(monthKey, records, holidays) {
+      const container = document.getElementById("days-container");
+      container.innerHTML = "";
+
+      const parts = monthKey.split("-");
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const totalDays = new Date(year, month + 1, 0).getDate();
+
+      const recordsByDate = {};
+      records.forEach(r => {
+        if (!recordsByDate[r.date]) recordsByDate[r.date] = [];
+        recordsByDate[r.date].push(r);
+      });
+
+      for (let day = 1; day <= totalDays; day++) {
+        const dayDate = new Date(year, month, day);
+        const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const dayOfWeek = dayDate.getDay();
+        const dayName = DAY_NAMES[dayOfWeek];
+
+        const dayRecs = recordsByDate[dateStr] || [];
+        const dayTotal = dayRecs.reduce((sum, r) => sum + r.amount, 0);
+
+        const isSunday = dayOfWeek === 0;
+        const isSaturday = dayOfWeek === 6;
+        const isHoliday = holidays.has(dateStr);
+
+        const typeCounts = {};
+        dayRecs.forEach(r => {
+          typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
+        });
+
+        const dayRow = document.createElement("div");
+        dayRow.className = `day-row ${dayRecs.length > 0 ? "has-sales" : ""} ${isSunday ? "is-sunday" : ""} ${isHoliday ? "is-off" : ""}`;
+
+        let tagsHtml = "";
+        for (const t of Object.keys(typeCounts)) {
+          tagsHtml += `<span class="day-tag">${escapeHtml(t)}: ${typeCounts[t]}×</span>`;
+        }
+
+        if (isHoliday) {
+          tagsHtml += `<span class="day-tag" style="background:#5a1e1e; color:#ff9b9b;">Svátek / Volno</span>`;
+        } else if (isSaturday) {
+          tagsHtml += `<span class="day-tag" style="background:#2c3e50;">Sobota (0.5 dne)</span>`;
+        } else if (isSunday) {
+          tagsHtml += `<span class="day-tag" style="background:#1f2229;">Neděle</span>`;
+        }
+
+        let detailsHtml = "";
+        if (dayRecs.length > 0) {
+          detailsHtml = dayRecs.map(r => `
+            <div class="rec-item">
+              <div>
+                <strong>${escapeHtml(r.type)}</strong>: ${r.amount.toLocaleString("cs-CZ")} Kč
+                ${r.note ? `<span style="color:var(--text-muted);"> (${escapeHtml(r.note)})</span>` : ""}
+              </div>
+              <button type="button" class="rec-del-btn" onclick="deleteRecord('${r.id}', event)">✕</button>
+            </div>
+          `).join("");
+        } else {
+          detailsHtml = `<p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">Žádné zapsané služby pro tento den.</p>`;
+        }
+
+        detailsHtml += `
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button type="button" class="btn-secondary" onclick="quickAddForDate('${dateStr}', event)">+ Zapsat službu</button>
+            <button type="button" class="btn-secondary" onclick="toggleHoliday('${dateStr}', event)">
+              ${isHoliday ? "Zrušit svátek/volno" : "Označit jako svátek/volno"}
+            </button>
+          </div>
+        `;
+
+        dayRow.innerHTML = `
+          <div class="day-header" onclick="toggleDayDetails('${dateStr}')">
+            <div>
+              <span class="day-name">${day}. ${dayName}</span>
+              <span style="font-size:0.8rem; color:var(--text-muted); margin-left:6px;">(${dayRecs.length})</span>
+            </div>
+            <div class="day-amount">${dayTotal > 0 ? dayTotal.toLocaleString("cs-CZ") + " Kč" : "–"}</div>
+          </div>
+          <div class="day-tags" onclick="toggleDayDetails('${dateStr}')">${tagsHtml}</div>
+          <div class="day-details" id="details-${dateStr}">
+            ${detailsHtml}
+          </div>
+        `;
+
+        container.appendChild(dayRow);
+      }
+    }
+
+    function toggleDayDetails(dateStr) {
+      const el = document.getElementById("details-" + dateStr);
+      if (el) el.classList.toggle("open");
+    }
+
+    function quickAddForDate(dateStr, e) {
+      if (e) e.stopPropagation();
+      document.getElementById("record-date").value = dateStr;
+      switchTab("tab-record");
+    }
+
+    function toggleHoliday(dateStr, e) {
+      if (e) e.stopPropagation();
+      let holidays = getStorageData("ks_holidays", []);
+      if (holidays.includes(dateStr)) {
+        holidays = holidays.filter(d => d !== dateStr);
+        showToast("Den nastaven jako pracovní");
+      } else {
+        holidays.push(dateStr);
+        showToast("Den označen jako svátek / volno");
+      }
+      setStorageData("ks_holidays", holidays);
+      renderCurrentView();
+    }
+
+    function saveRecord(e) {
+      e.preventDefault();
+      const date = document.getElementById("record-date").value;
+      const type = document.getElementById("record-type").value;
+      const amount = parseInt(document.getElementById("record-amount").value, 10);
+      const note = document.getElementById("record-note").value.trim();
+
+      if (type === "__custom__") {
+        alert("Prosím nejprve zadej a přidej název nového typu služby.");
+        return;
+      }
+
+      if (!date || isNaN(amount) || amount <= 0) {
+        alert("Zadej platné datum a kladnou částku!");
+        return;
+      }
+
+      const records = getStorageData("ks_records", []);
+      records.push({
+        id: "rec_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+        date: date,
+        type: type,
+        amount: amount,
+        note: note,
+        createdAt: new Date().toISOString()
+      });
+
+      setStorageData("ks_records", records);
+      showToast("Uloženo: " + amount.toLocaleString("cs-CZ") + " Kč");
+
+      document.getElementById("record-amount").value = "";
+      document.getElementById("record-note").value = "";
+
+      const recMonthKey = date.substring(0, 7);
+      if (getMonthKey(viewDate) !== recMonthKey) {
+        const parts = recMonthKey.split("-");
+        viewDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
+      }
+
+      renderCurrentView();
+      switchTab("tab-overview");
+    }
+
+    function deleteRecord(id, e) {
+      if (e) e.stopPropagation();
+      if (!confirm("Opravdu smazat tento záznam?")) return;
+
+      let records = getStorageData("ks_records", []);
+      records = records.filter(r => r.id !== id);
+      setStorageData("ks_records", records);
+      showToast("Záznam smazán");
+      renderCurrentView();
+    }
+
+    function saveMonthlyTarget() {
+      const val = parseInt(document.getElementById("target-input").value, 10);
+      if (isNaN(val) || val < 0) {
+        alert("Zadej platnou částku cíle.");
+        return;
+      }
+      const monthKey = getMonthKey(viewDate);
+      const targets = getStorageData("ks_targets", {});
+      targets[monthKey] = val;
+      setStorageData("ks_targets", targets);
+
+      showToast("Měsíční cíl uložen!");
+      renderCurrentView();
+      switchTab("tab-overview");
+    }
+
+    // NOVÉ: Stáhnout zálohu a otevřít Android menu sdílení (pro Dropbox, Disk atd.)
+    async function exportBackupAndShare() {
+      const backupData = {
+        version: "1.1",
+        appName: "KolobeznikovySluzby",
+        exportedAt: new Date().toISOString(),
+        records: getStorageData("ks_records", []),
+        targets: getStorageData("ks_targets", {}),
+        holidays: getStorageData("ks_holidays", []),
+        customTypes: getStorageData("ks_custom_types", [])
+      };
+
+      const jsonStr = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const dateStr = new Date().toISOString().split("T")[0];
+      const filename = `kolobeznik-sluzby-zaloha-${dateStr}.json`;
+      const file = new File([blob], filename, { type: "application/json" });
+
+      // Pokud telefon podporuje přímé sdílení souborů (Android to podporuje skvěle)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: "Záloha Koloběžníkovy služby",
+            text: "Záloha dat z aplikace",
+            files: [file]
+          });
+          return;
+        } catch (err) {
+          if (err.name !== "AbortError") {
+            console.log("Sdílení zrušeno nebo nepodporováno, stahuji běžně.");
+          }
         }
       }
 
-      const container = document.getElementById('app-container');
-      container.innerHTML = `
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-title">Zbývá doplatit</div>
-            <div class="metric-value" style="color: var(--accent-red);">${formatKc(unpaidCents)}</div>
-            <div class="metric-sub">${monthExpenses.length - paidCount} z ${monthExpenses.length} položek</div>
-          </div>
-          <div class="card">
-            <div class="card-title">Zaplaceno</div>
-            <div class="metric-value" style="color: var(--accent-green);">${formatKc(paidCents)}</div>
-            <div class="metric-sub">${paidCount} hotovo</div>
-          </div>
-        </div>
-
-        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-          <button id="btn-add-expense" class="btn btn-primary" style="flex: 1;">
-            + Přidat výdaj
-          </button>
-          <button id="btn-add-income-page" class="btn btn-success" style="flex: 1;">
-            + Zadat příjem
-          </button>
-        </div>
-
-        ${monthIncomes.length > 0 ? `
-          <div class="card" style="margin-bottom: 1rem; border-color: rgba(34, 197, 94, 0.3);">
-            <div class="card-title" style="color: var(--accent-green);">Evidované příjmy v tomto měsíci</div>
-            <div>
-              ${monthIncomes.map(inc => `
-                <div class="sub-item-row">
-                  <div>
-                    <strong>${inc.title}</strong>
-                    <div style="font-size: 0.7rem; color: var(--text-muted);">${inc.date || ''}</div>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <span style="font-weight: bold; color: var(--accent-green);">${formatKc(inc.amountCents)}</span>
-                    <button class="btn-icon btn-del-income" data-id="${inc.id}" title="Smazat">🗑️</button>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        ` : ''}
-
-        <div style="margin: 0.5rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
-          <h2 style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
-            Platby v tomto měsíci
-          </h2>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">Kolečko = zaplaceno | ✏️ = úprava</span>
-        </div>
-
-        <div id="expenses-list" class="item-list"></div>
-      `;
-
-      container.querySelectorAll('.btn-del-income').forEach(b => {
-        b.addEventListener('click', async () => {
-          const id = parseInt(b.getAttribute('data-id'), 10);
-          if (confirm('Smazat tento záznam příjmu?')) {
-            await dbDelete('incomes', id);
-            await render();
-          }
-        });
-      });
-
-      document.getElementById('btn-add-income-page').addEventListener('click', async () => {
-        const title = prompt('Popis příjmu (Výplata, Odměny, Prodej):', 'Výplata');
-        if (!title || !title.trim()) return;
-        const valStr = prompt(`Částka pro "${title}" v Kč:`);
-        if (!valStr || !valStr.trim()) return;
-
-        await dbAdd('incomes', {
-          title: title.trim(),
-          amountCents: toCents(valStr),
-          period: curPeriod,
-          date: new Date().toISOString().slice(0, 10)
-        });
-        await render();
-      });
-
-      document.getElementById('btn-add-expense').addEventListener('click', async () => {
-        const name = prompt('Název nové platby:');
-        if (!name || !name.trim()) return;
-        const amountStr = prompt(`Částka pro "${name}" v Kč:`);
-        if (!amountStr || !amountStr.trim()) return;
-        const dueDayStr = prompt('Den splatnosti v měsíci (1 až 31):', '15');
-        const isRecurring = confirm(`Má se "${name}" opakovat každý měsíc automaticky?\n\n[OK] = Ano, trvalá měsíční platba\n[Zrušit] = Ne, pouze jednorázový výdaj`);
-
-        const amountCents = toCents(amountStr);
-        const dueDay = parseInt(dueDayStr, 10) || 15;
-
-        let templateId = null;
-        if (isRecurring) {
-          templateId = await dbAdd('recurring_templates', {
-            name: name.trim(),
-            amountCents,
-            category: 'Pravidelné',
-            dueDay,
-            active: true
-          });
-        }
-
-        await dbAdd('monthly_expenses', {
-          templateId,
-          name: name.trim(),
-          category: isRecurring ? 'Pravidelné' : 'Jednorázové',
-          plannedAmountCents: amountCents,
-          paidAmountCents: 0,
-          dueDay,
-          period: curPeriod,
-          isPaid: false
-        });
-
-        await render();
-      });
-
-      const listContainer = document.getElementById('expenses-list');
-      monthExpenses.forEach(item => {
-        const div = document.createElement('div');
-        div.className = `expense-item ${item.isPaid ? 'paid' : ''}`;
-        div.innerHTML = `
-          <div class="expense-info">
-            <div class="expense-name">${item.name}</div>
-            <div class="expense-meta">Splatnost: ${item.dueDay}. v měsíci | ${item.category}</div>
-          </div>
-          <div class="expense-right">
-            <div class="expense-amount">${formatKc(item.plannedAmountCents)}</div>
-            <button class="btn-icon btn-edit-item" title="Upravit / Smazat">✏️</button>
-            <div class="check-circle">✓</div>
-          </div>
-        `;
-
-        const checkCircle = div.querySelector('.check-circle');
-        const infoArea = div.querySelector('.expense-info');
-        const toggleHandler = async () => {
-          item.isPaid = !item.isPaid;
-          await dbPut('monthly_expenses', item);
-          await render();
-        };
-        checkCircle.addEventListener('click', toggleHandler);
-        infoArea.addEventListener('click', toggleHandler);
-
-        const btnEdit = div.querySelector('.btn-edit-item');
-        btnEdit.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const action = prompt(`Úprava: ${item.name}\nAktuálně: ${(item.plannedAmountCents / 100).toFixed(2)} Kč\n\n1 = Změnit částku\n2 = Přejmenovat\n3 = Smazat platbu`, '1');
-          if (action === '1') {
-            const val = prompt('Nová částka v Kč:', (item.plannedAmountCents / 100).toFixed(2));
-            if (val !== null && val.trim() !== '') {
-              item.plannedAmountCents = toCents(val);
-              await dbPut('monthly_expenses', item);
-              await render();
-            }
-          } else if (action === '2') {
-            const val = prompt('Nový název:', item.name);
-            if (val && val.trim()) {
-              item.name = val.trim();
-              await dbPut('monthly_expenses', item);
-              await render();
-            }
-          } else if (action === '3') {
-            if (confirm(`Opravdu smazat "${item.name}"?`)) {
-              await dbDelete('monthly_expenses', item.id);
-              await render();
-            }
-          }
-        });
-
-        listContainer.appendChild(div);
-      });
+      // Fallback na klasické stažení do telefonu
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Záloha uložena do telefonu!");
     }
 
-    // --- ZÁLOŽKA 2: DLUHY & POHLEDÁVKY ---
-    async function renderDebts() {
-      const curPeriod = formatPeriodKey(viewDate);
-      const debts = await dbGetAll('debts_payable');
-      const totalDebtCents = debts.reduce((sum, d) => sum + d.principalRemainingCents, 0);
+    function exportToCSV() {
+      const records = getStorageData("ks_records", []);
+      if (records.length === 0) {
+        alert("Zatím nejsou žádné záznamy k exportu.");
+        return;
+      }
 
-      const receivables = await dbGetAll('debts_receivable');
-      const totalReceivableCents = receivables.reduce((sum, r) => sum + r.remainingAmountCents, 0);
+      records.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      const container = document.getElementById('app-container');
-      container.innerHTML = `
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-title">Moje dluhy</div>
-            <div class="metric-value" style="color: var(--accent-red);">${formatKc(totalDebtCents)}</div>
-            <div class="metric-sub">Pravidlo 10. dne</div>
-          </div>
-          <div class="card">
-            <div class="card-title">Dluží mně</div>
-            <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalReceivableCents)}</div>
-            <div class="metric-sub">Celkem pohledávky</div>
-          </div>
-        </div>
-
-        <div style="margin: 1.25rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
-          <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
-            Kdo mi dluží (Pohledávky)
-          </h2>
-          <button id="btn-add-new-debtor" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">+ Nová osoba</button>
-        </div>
-
-        <div id="receivables-grouped" class="item-list"></div>
-
-        <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 1.5rem 0 0.5rem 0;">
-          Moje půjčky k úhradě
-        </h2>
-        <div id="debts-list" class="item-list"></div>
-      `;
-
-      document.getElementById('btn-add-new-debtor').addEventListener('click', async () => {
-        const name = prompt('Jméno nebo přezdívka nové osoby:');
-        if (!name || !name.trim()) return;
-        const category = prompt('Za co dluží (např. Půjčky, Elektřina, jiné):', 'Půjčky');
-        const amount = prompt('Částka v Kč:');
-        if (amount && amount.trim()) {
-          await dbAdd('debts_receivable', {
-            debtor: name.trim().toUpperCase(),
-            category: category ? category.trim() : 'Půjčky',
-            originalAmountCents: toCents(amount),
-            remainingAmountCents: toCents(amount),
-            history: [{ date: new Date().toISOString().slice(0, 10), amountCents: toCents(amount), type: 'loan', note: 'Vznik dluhu' }]
-          });
-          await render();
-        }
+      let csv = "\uFEFFDatum;Typ služby;Částka v Kč;Poznámka\n";
+      records.forEach(r => {
+        const cleanNote = (r.note || "").replace(/;/g, ",");
+        csv += `${r.date};${r.type};${r.amount};${cleanNote}\n`;
       });
 
-      const debtorNames = [...new Set(receivables.map(r => r.debtor.toUpperCase()))];
-      const groupedContainer = document.getElementById('receivables-grouped');
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dateStr = new Date().toISOString().split("T")[0];
+      a.href = url;
+      a.download = `sluzby-export-${dateStr}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Tabulka CSV stažena!");
+    }
 
-      debtorNames.forEach(personName => {
-        const personItems = receivables.filter(r => r.debtor.toUpperCase() === personName);
-        const personTotalCents = personItems.reduce((sum, r) => sum + r.remainingAmountCents, 0);
+    function handleFileImport(e) {
+      const file = e.target.files[0];
+      if (!file) return;
 
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.style.marginBottom = '0.85rem';
-
-        let rowsHtml = '';
-        personItems.forEach(item => {
-          let lastHistory = '';
-          if (item.history && item.history.length > 0) {
-            const last = item.history[item.history.length - 1];
-            const prefix = last.type === 'payment' ? '✓ Zaplaceno' : '+ Přičteno';
-            const color = last.type === 'payment' ? 'var(--accent-green)' : 'var(--accent-red)';
-            lastHistory = `<div style="font-size: 0.7rem; color: ${color}; margin-top: 0.15rem;">${prefix} ${formatKc(last.amountCents)} (${last.date})</div>`;
-          }
-
-          rowsHtml += `
-            <div class="sub-item-row">
-              <div style="flex: 1;">
-                <strong>${item.category}</strong>
-                ${lastHistory}
-              </div>
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <span style="font-weight: 700; color: ${item.remainingAmountCents > 0 ? 'var(--text-main)' : 'var(--text-muted)'}; font-size: 0.95rem;">
-                  ${formatKc(item.remainingAmountCents)}
-                </span>
-                <button class="btn-icon btn-edit-category" data-id="${item.id}" title="Upravit částku ručně">✏️</button>
-              </div>
-            </div>
-          `;
-        });
-
-        card.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
-            <div>
-              <div style="font-size: 1.15rem; font-weight: 800; color: var(--accent);">${personName}</div>
-              <div class="expense-meta">${personItems.length} položky dluhu</div>
-            </div>
-            <div style="text-align: right;">
-              <div style="font-size: 1.25rem; font-weight: 800; color: var(--accent-green);">${formatKc(personTotalCents)}</div>
-              <div class="expense-meta">Celkem dluží</div>
-            </div>
-          </div>
-
-          <div>${rowsHtml}</div>
-
-          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-            <button class="btn btn-secondary btn-add-debt" style="flex: 1; font-size: 0.75rem; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
-              + Půjčit / Přičíst
-            </button>
-            <button class="btn btn-success btn-pay-debt" style="flex: 1; font-size: 0.75rem;">
-              − Zadat úhradu
-            </button>
-          </div>
-        `;
-
-        card.querySelector('.btn-add-debt').addEventListener('click', async () => {
-          const catPrompt = `Vyber za co ${personName} dluží / půjčuje si:\n\n1 = Půjčky\n2 = Elektřina a drogerie\n3 = Fólie na bazén\n4 = Jiné (zadat vlastní název)`;
-          const choice = prompt(catPrompt, '1');
-          if (!choice) return;
-
-          let chosenCategory = 'Půjčky';
-          if (choice === '2') chosenCategory = 'Elektřina a drogerie';
-          else if (choice === '3') chosenCategory = 'Fólie na bazén';
-          else if (choice === '4') {
-            const custom = prompt('Zadej vlastní důvod / položku:');
-            if (custom && custom.trim()) chosenCategory = custom.trim();
-          }
-
-          const amountStr = prompt(`Kolik Kč si ${personName} půjčuje / vzniká dluh za "${chosenCategory}"?`);
-          if (!amountStr || !amountStr.trim()) return;
-          const addCents = toCents(amountStr);
-
-          const dateStr = prompt('Datum vzniku dluhu (RRRR-MM-DD):', new Date().toISOString().slice(0, 10));
-
-          let existingItem = personItems.find(i => i.category.toLowerCase() === chosenCategory.toLowerCase());
-
-          if (existingItem) {
-            existingItem.remainingAmountCents += addCents;
-            existingItem.originalAmountCents += addCents;
-            if (!existingItem.history) existingItem.history = [];
-            existingItem.history.push({
-              date: dateStr || new Date().toISOString().slice(0, 10),
-              amountCents: addCents,
-              type: 'loan',
-              note: `Přičteno: ${chosenCategory}`
-            });
-            await dbPut('debts_receivable', existingItem);
-          } else {
-            await dbAdd('debts_receivable', {
-              debtor: personName,
-              category: chosenCategory,
-              originalAmountCents: addCents,
-              remainingAmountCents: addCents,
-              history: [{
-                date: dateStr || new Date().toISOString().slice(0, 10),
-                amountCents: addCents,
-                type: 'loan',
-                note: `Přičteno: ${chosenCategory}`
-              }]
-            });
-          }
-
-          await render();
-        });
-
-        card.querySelector('.btn-pay-debt').addEventListener('click', async () => {
-          let catMenu = `Na kterou položku ${personName} platí?\n\n`;
-          personItems.forEach((it, idx) => {
-            catMenu += `${idx + 1} = ${it.category} (zbývá: ${(it.remainingAmountCents / 100).toFixed(0)} Kč)\n`;
-          });
-
-          const choice = prompt(catMenu, '1');
-          if (!choice) return;
-          const idx = parseInt(choice, 10) - 1;
-          const targetItem = personItems[idx];
-          if (!targetItem) {
-            alert('Neplatná volba položky.');
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const data = JSON.parse(evt.target.result);
+          if (!data || !Array.isArray(data.records)) {
+            alert("Neplatný soubor zálohy! Chybí data záznamů.");
             return;
           }
 
-          const defaultAmount = (targetItem.remainingAmountCents / 100).toFixed(0);
-          const valStr = prompt(`Kolik Kč ${personName} zaplatil/a na "${targetItem.category}"?`, defaultAmount);
-          if (!valStr || !valStr.trim()) return;
-
-          const paidCents = toCents(valStr);
-          const dateStr = prompt('Datum zaplacení (RRRR-MM-DD):', new Date().toISOString().slice(0, 10));
-
-          targetItem.remainingAmountCents = Math.max(0, targetItem.remainingAmountCents - paidCents);
-          if (!targetItem.history) targetItem.history = [];
-          targetItem.history.push({
-            date: dateStr || new Date().toISOString().slice(0, 10),
-            amountCents: paidCents,
-            type: 'payment',
-            note: `Zaplaceno na ${targetItem.category}`
-          });
-
-          await dbPut('debts_receivable', targetItem);
-          await render();
-        });
-
-        card.querySelectorAll('.btn-edit-category').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const id = parseInt(btn.getAttribute('data-id'), 10);
-            const target = receivables.find(r => r.id === id);
-            if (!target) return;
-
-            const action = prompt(`Položka: ${target.debtor} – ${target.category}\nAktuálně zbývá: ${(target.remainingAmountCents / 100).toFixed(2)} Kč\n\n1 = Zadat přesnou novou částku zůstatku\n2 = Smazat tuto položku`, '1');
-            if (action === '1') {
-              const val = prompt('Nový skutečný zůstatek v Kč:', (target.remainingAmountCents / 100).toFixed(2));
-              if (val !== null && val.trim() !== '') {
-                target.remainingAmountCents = toCents(val);
-                await dbPut('debts_receivable', target);
-                await render();
-              }
-            } else if (action === '2') {
-              if (confirm(`Opravdu smazat položku "${target.category}" u ${target.debtor}?`)) {
-                await dbDelete('debts_receivable', target.id);
-                await render();
-              }
-            }
-          });
-        });
-
-        groupedContainer.appendChild(card);
-      });
-
-      const debtsList = document.getElementById('debts-list');
-      debts.forEach(debt => {
-        if (!debt.paymentHistory) debt.paymentHistory = [];
-        const isPaidThisMonth = debt.paymentHistory.some(p => p.period === curPeriod);
-
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.style.marginBottom = '0.5rem';
-
-        card.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-            <div>
-              <div style="font-size: 1.05rem; font-weight: 700;">${debt.name}</div>
-              <div class="expense-meta">Měsíční splátka: ${formatKc(debt.monthlyPaymentCents)} (k 10. dni)</div>
-            </div>
-            ${isPaidThisMonth
-              ? `<span style="color: var(--accent-green); font-size: 0.8rem; font-weight: 600;">✓ Splátka uhrazena</span>`
-              : `<span style="color: var(--accent-amber); font-size: 0.8rem; font-weight: 600;">⏳ Čeká na potvrzení</span>`}
-          </div>
-
-          <div style="margin: 0.5rem 0;">
-            <div style="font-size: 0.75rem; color: var(--text-muted);">Zbývající jistina:</div>
-            <div style="font-size: 1.3rem; font-weight: 800;">${formatKc(debt.principalRemainingCents)}</div>
-          </div>
-
-          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-            ${isPaidThisMonth
-              ? `<button class="btn btn-danger btn-revert">Zrušit potvrzení platby</button>`
-              : `<button class="btn btn-success btn-confirm">Potvrdit splátku ${formatKc(debt.monthlyPaymentCents)}</button>`}
-            <button class="btn btn-secondary btn-edit">Upravit jistinu</button>
-          </div>
-        `;
-
-        const btnConfirm = card.querySelector('.btn-confirm');
-        if (btnConfirm) {
-          btnConfirm.addEventListener('click', async () => {
-            debt.principalRemainingCents = Math.max(0, debt.principalRemainingCents - debt.monthlyPaymentCents);
-            debt.paymentHistory.push({ period: curPeriod, date: new Date().toISOString().slice(0, 10), amountCents: debt.monthlyPaymentCents });
-            await dbPut('debts_payable', debt);
-            await render();
-          });
-        }
-
-        const btnRevert = card.querySelector('.btn-revert');
-        if (btnRevert) {
-          btnRevert.addEventListener('click', async () => {
-            const idx = debt.paymentHistory.findIndex(p => p.period === curPeriod);
-            if (idx !== -1) {
-              debt.principalRemainingCents += debt.paymentHistory[idx].amountCents;
-              debt.paymentHistory.splice(idx, 1);
-              await dbPut('debts_payable', debt);
-              await render();
-            }
-          });
-        }
-
-        const btnEdit = card.querySelector('.btn-edit');
-        btnEdit.addEventListener('click', async () => {
-          const val = prompt(`Zadej skutečný zůstatek pro ${debt.name} v Kč:`, (debt.principalRemainingCents / 100).toFixed(2));
-          if (val !== null && val.trim() !== '') {
-            debt.principalRemainingCents = toCents(val);
-            await dbPut('debts_payable', debt);
-            await render();
+          const count = data.records.length;
+          if (!confirm(`Soubor obsahuje ${count} služeb. Chceš tato data nahrát do aplikace?`)) {
+            return;
           }
-        });
 
-        debtsList.appendChild(card);
-      });
-    }
+          setStorageData("ks_records", data.records);
+          if (data.targets) setStorageData("ks_targets", data.targets);
+          if (data.holidays) setStorageData("ks_holidays", data.holidays);
+          if (data.customTypes) setStorageData("ks_custom_types", data.customTypes);
 
-    // --- ZÁLOŽKA 3: CÍLE ---
-    async function renderGoals() {
-      const goals = await dbGetAll('savings_goals');
-      const totalAllocatedCents = goals.reduce((sum, g) => sum + (g.allocatedCents || 0), 0);
-
-      const container = document.getElementById('app-container');
-      container.innerHTML = `
-        <div class="card">
-          <div class="card-title">Celkem vyčleněno na cíle</div>
-          <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalAllocatedCents)}</div>
-          <div class="metric-sub">Peníze určené na konkrétní rezervy a plány</div>
-        </div>
-
-        <div style="margin: 1rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
-          <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
-            Plnění finančních cílů
-          </h2>
-        </div>
-
-        <div id="goals-list" class="item-list"></div>
-      `;
-
-      const listContainer = document.getElementById('goals-list');
-      goals.forEach(goal => {
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.style.marginBottom = '0.75rem';
-
-        const percent = goal.targetCents > 0 ? Math.min(100, Math.round(((goal.allocatedCents || 0) / goal.targetCents) * 100)) : 0;
-
-        card.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-              <div style="font-size: 1rem; font-weight: 700;">${goal.name}</div>
-              <div class="expense-meta">Cíl: ${goal.targetCents > 0 ? formatKc(goal.targetCents) : 'Bez limitu'}</div>
-            </div>
-            <div style="text-align: right;">
-              <div style="font-size: 1.1rem; font-weight: 800; color: var(--accent-green);">${formatKc(goal.allocatedCents || 0)}</div>
-              <div class="expense-meta">${percent} % splněno</div>
-            </div>
-          </div>
-
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" style="width: ${percent}%;"></div>
-          </div>
-
-          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-            <button class="btn btn-secondary btn-add-funds" style="font-size: 0.75rem;">+ Přidat peníze</button>
-            <button class="btn btn-secondary btn-edit-goal" style="font-size: 0.75rem;">Upravit cíl</button>
-          </div>
-        `;
-
-        card.querySelector('.btn-add-funds').addEventListener('click', async () => {
-          const val = prompt(`Kolik Kč přidat na "${goal.name}"?`);
-          if (val && val.trim()) {
-            goal.allocatedCents = (goal.allocatedCents || 0) + toCents(val);
-            await dbPut('savings_goals', goal);
-            await render();
-          }
-        });
-
-        card.querySelector('.btn-edit-goal').addEventListener('click', async () => {
-          const val = prompt(`Cílová částka pro "${goal.name}" v Kč:`, (goal.targetCents / 100).toFixed(0));
-          if (val !== null && val.trim() !== '') {
-            goal.targetCents = toCents(val);
-            await dbPut('savings_goals', goal);
-            await render();
-          }
-        });
-
-        listContainer.appendChild(card);
-      });
-    }
-
-    // --- ZÁLOŽKA 4: NASTAVENÍ ---
-    async function renderSettings() {
-      const container = document.getElementById('app-container');
-      
-      const storageStatusHtml = isStoragePersistent
-        ? `<span style="color: var(--accent-green); font-weight: bold;">✓ Trvale chráněno (systém Android data nesmaže)</span>`
-        : `<span style="color: var(--accent-amber); font-weight: bold;">⚡ Standardní lokální úložiště</span>`;
-
-      container.innerHTML = `
-        <div class="card">
-          <div class="card-title">Instalace do telefonu</div>
-          <button id="btn-install-pwa" class="btn btn-primary" style="width: 100%; display: ${deferredPrompt ? 'block' : 'none'}; margin-bottom: 0.75rem;">
-            📲 Nainstalovat Koloběžníkův rozpočet do telefonu
-          </button>
-          <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
-            Pokud se tlačítko nezobrazuje, klepni v Chrome nahoře na <strong>tři tečky</strong> a zvol <strong>„Nainstalovat aplikaci“</strong> (nebo „Přidat na plochu“).
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">Stav ochrany dat</div>
-          <div style="font-size: 0.85rem; margin-bottom: 0.5rem;">${storageStatusHtml}</div>
-          <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
-            Veškeré změny se okamžitě a trvale ukládají do lokální databáze (IndexedDB). Pro maximální jistotu proti smazání telefonu si stáhni zálohu nebo zkopíruj textový kód.
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">Zálohování a obnova</div>
-
-          <button id="btn-export-backup" class="btn btn-success" style="width: 100%; margin-bottom: 0.6rem;">
-            ⬇️ Stáhnout soubor zálohy (.JSON)
-          </button>
-
-          <button id="btn-copy-backup" class="btn btn-primary" style="width: 100%; margin-bottom: 0.6rem;">
-            📋 Zkopírovat zálohu do schránky (pro e-mail/poznámky)
-          </button>
-
-          <label class="btn btn-secondary" style="width: 100%; margin-bottom: 0.6rem;">
-            ⬆️ Obnovit data ze souboru
-            <input type="file" id="input-restore" accept=".json" style="display: none;">
-          </label>
-
-          <button id="btn-force-reload-data" class="btn btn-danger" style="width: 100%; margin-top: 0.5rem;">
-            🔄 Reset do výchozího stavu k 15. 10. 2026
-          </button>
-        </div>
-
-        <div class="card">
-          <div class="card-title">Informace o aplikaci</div>
-          <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
-            <strong>Projekt:</strong> Koloběžníkův rozpočet<br>
-            <strong>Typ:</strong> Offline PWA s trvalou databází IndexedDB<br>
-            <strong>Podpora PWA:</strong> Instalovatelná webová aplikace (Android / Desktop)
-          </div>
-        </div>
-      `;
-
-      const installBtn = document.getElementById('btn-install-pwa');
-      if (installBtn) {
-        installBtn.addEventListener('click', async () => {
-          if (deferredPrompt) {
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            if (outcome === 'accepted') {
-              deferredPrompt = null;
-              installBtn.style.display = 'none';
-            }
-          }
-        });
-      }
-
-      document.getElementById('btn-export-backup').addEventListener('click', async () => {
-        const backup = await getBackupPayload();
-        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `kolobeznik-rozpocet-zaloha-${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-      });
-
-      document.getElementById('btn-copy-backup').addEventListener('click', async () => {
-        const backup = await getBackupPayload();
-        const jsonStr = JSON.stringify(backup);
-        try {
-          await navigator.clipboard.writeText(jsonStr);
-          alert('Kompletní záloha byla zkopírována do schránky!');
+          updateTypeDropdown();
+          showToast("Záloha úspěšně nahrána!");
+          renderCurrentView();
+          switchTab("tab-overview");
         } catch (err) {
-          prompt('Zkopíruj si tento text zálohy ručně:', jsonStr);
-        }
-      });
-
-      document.getElementById('btn-force-reload-data').addEventListener('click', async () => {
-        if (confirm('Nastavit znovu výchozí stav pohledávek k 15. 10. 2026?')) {
-          await seedInitialData(true);
-          alert('Pohledávky byly nastaveny.');
-          setTab('debts');
-        }
-      });
-
-      document.getElementById('input-restore').addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        if (!confirm('Obnova přepíše aktuální stav databáze daty ze souboru. Pokračovat?')) {
-          e.target.value = '';
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-          try {
-            const parsed = JSON.parse(evt.target.result);
-            if (parsed.appName !== 'KolobeznikRozpocet') throw new Error('Neplatný formát zálohy.');
-            const db = await openDB();
-            for (const storeName of Object.keys(parsed.data)) {
-              const tx = db.transaction(storeName, 'readwrite');
-              tx.objectStore(storeName).clear();
-              for (const item of parsed.data[storeName]) {
-                delete item.id;
-                await dbAdd(storeName, item);
-              }
-            }
-            alert('Záloha byla úspěšně obnovena!');
-            setTab('dashboard');
-          } catch (err) {
-            alert('Chyba: ' + err.message);
-          }
-        };
-        reader.readAsText(file);
-      });
-    }
-
-    async function getBackupPayload() {
-      return {
-        appName: 'KolobeznikRozpocet',
-        exportedAt: new Date().toISOString(),
-        data: {
-          recurring_templates: await dbGetAll('recurring_templates'),
-          monthly_expenses: await dbGetAll('monthly_expenses'),
-          incomes: await dbGetAll('incomes'),
-          debts_payable: await dbGetAll('debts_payable'),
-          debts_receivable: await dbGetAll('debts_receivable'),
-          savings_goals: await dbGetAll('savings_goals')
+          alert("Chyba při čtení souboru: " + err.message);
         }
       };
+      reader.readAsText(file);
+      e.target.value = "";
     }
 
-    async function render() {
-      await openDB();
-      await seedInitialData();
-      const curPeriod = formatPeriodKey(viewDate);
-      await ensureMonthInitialized(curPeriod);
-      updatePeriodLabel();
+    function renderStats(records) {
+      const container = document.getElementById("stats-by-type");
+      if (records.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted); padding:10px 0;">V tomto měsíci zatím nejsou záznamy.</p>';
+        return;
+      }
 
-      if (activeTab === 'dashboard') await renderDashboard();
-      else if (activeTab === 'expenses') await renderExpenses();
-      else if (activeTab === 'debts') await renderDebts();
-      else if (activeTab === 'goals') await renderGoals();
-      else if (activeTab === 'settings') await renderSettings();
+      const totals = {};
+      const counts = {};
+      let allSum = 0;
+
+      records.forEach(r => {
+        totals[r.type] = (totals[r.type] || 0) + r.amount;
+        counts[r.type] = (counts[r.type] || 0) + 1;
+        allSum += r.amount;
+      });
+
+      let html = "";
+      for (const type of Object.keys(totals)) {
+        const sum = totals[type];
+        const cnt = counts[type];
+        const pct = allSum > 0 ? Math.round((sum / allSum) * 100) : 0;
+        const avg = Math.round(sum / cnt);
+
+        html += `
+          <div style="margin-bottom:12px; border-bottom:1px solid var(--card-border); padding-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; font-weight:700;">
+              <span>${escapeHtml(type)}</span>
+              <span style="color:var(--primary);">${sum.toLocaleString("cs-CZ")} Kč</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
+              <span>${cnt}× (průměr ${avg.toLocaleString("cs-CZ")} Kč)</span>
+              <span>${pct} %</span>
+            </div>
+            <div class="progress-bar-bg" style="height:6px; margin:4px 0 0 0;">
+              <div class="progress-bar-fill" style="width:${pct}%;"></div>
+            </div>
+          </div>
+        `;
+      }
+      container.innerHTML = html;
     }
 
-    render();
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.style.display = "block";
+      setTimeout(function() { t.style.display = "none"; }, 2000);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function switchTab(tabId, navBtn) {
+      document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
+      const targetSection = document.getElementById(tabId);
+      if (targetSection) targetSection.classList.add("active");
+
+      document.querySelectorAll(".nav-item").forEach(el => el.classList.remove("active"));
+      if (navBtn) {
+        navBtn.classList.add("active");
+      } else {
+        const buttons = document.querySelectorAll(".nav-item");
+        if (tabId === "tab-overview" && buttons[0]) buttons[0].classList.add("active");
+        if (tabId === "tab-record" && buttons[1]) buttons[1].classList.add("active");
+        if (tabId === "tab-history" && buttons[2]) buttons[2].classList.add("active");
+        if (tabId === "tab-stats" && buttons[3]) buttons[3].classList.add("active");
+        if (tabId === "tab-settings" && buttons[4]) buttons[4].classList.add("active");
+      }
+      window.scrollTo(0, 0);
+    }
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js");
+      });
+    }
+
+    document.getElementById("record-date").value = new Date().toISOString().split("T")[0];
+    updateTypeDropdown();
+    renderCurrentView();
   </script>
 </body>
 </html>
