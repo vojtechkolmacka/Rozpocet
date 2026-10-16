@@ -226,6 +226,15 @@
     const DB_NAME = 'KolobeznikRozpocetDB';
     const DB_VERSION = 2;
 
+    // Požadavek na trvalé úložiště (Persistent Storage), aby Android data nikdy nesmazal
+    let isStoragePersistent = false;
+    async function requestPersistence() {
+      if (navigator.storage && navigator.storage.persist) {
+        isStoragePersistent = await navigator.storage.persist();
+      }
+    }
+    requestPersistence();
+
     function toCents(amount) {
       if (amount === null || amount === undefined || amount === '') return 0;
       if (typeof amount === 'string') amount = amount.replace(/\s/g, '').replace(',', '.');
@@ -314,7 +323,6 @@
       });
     }
 
-    // --- VÝCHOZÍ DATA A INICIALIZACE POHLEDÁVEK (15. 10. 2026) ---
     async function seedInitialData(forceReload = false) {
       const existingReceivables = await dbGetAll('debts_receivable');
       
@@ -322,17 +330,14 @@
         await clearStore('debts_receivable');
 
         const initialList = [
-          // KOV (Celkem 6 650 Kč)
           { debtor: 'KOV', category: 'Půjčky', originalAmountCents: toCents('3400'), remainingAmountCents: toCents('3400'), history: [] },
           { debtor: 'KOV', category: 'Elektřina a drogerie', originalAmountCents: toCents('2750'), remainingAmountCents: toCents('2750'), history: [] },
           { debtor: 'KOV', category: 'Fólie na bazén', originalAmountCents: toCents('500'), remainingAmountCents: toCents('500'), history: [] },
 
-          // JIŘÍ (Celkem 750 Kč)
           { debtor: 'JIŘÍ', category: 'Půjčky', originalAmountCents: toCents('0'), remainingAmountCents: toCents('0'), history: [] },
           { debtor: 'JIŘÍ', category: 'Elektřina a drogerie', originalAmountCents: toCents('1500'), remainingAmountCents: toCents('250'), history: [{ date: '2026-10-13', amountCents: toCents('1250'), type: 'payment', note: 'Zaplaceno na elektřinu a drogerii' }] },
           { debtor: 'JIŘÍ', category: 'Fólie na bazén', originalAmountCents: toCents('500'), remainingAmountCents: toCents('500'), history: [] },
 
-          // MAGDA (Celkem 2 700 Kč)
           { debtor: 'MAGDA', category: 'Půjčky', originalAmountCents: toCents('700'), remainingAmountCents: toCents('700'), history: [] },
           { debtor: 'MAGDA', category: 'Elektřina a drogerie', originalAmountCents: toCents('1500'), remainingAmountCents: toCents('1500'), history: [] },
           { debtor: 'MAGDA', category: 'Fólie na bazén', originalAmountCents: toCents('500'), remainingAmountCents: toCents('500'), history: [] }
@@ -568,7 +573,7 @@
       });
     }
 
-    // --- ZÁLOŽKA 2: DLUHY & POHLEDÁVKY S PLNÝM PŘIČÍTÁNÍM A ODČÍTÁNÍM ---
+    // --- ZÁLOŽKA 2: DLUHY & POHLEDÁVKY ---
     async function renderDebts() {
       const debts = await dbGetAll('debts_payable');
       const totalDebtCents = debts.reduce((sum, d) => sum + d.principalRemainingCents, 0);
@@ -606,7 +611,6 @@
         <div id="debts-list" class="item-list"></div>
       `;
 
-      // Přidání nové osoby
       document.getElementById('btn-add-new-debtor').addEventListener('click', async () => {
         const name = prompt('Jméno nebo přezdívka nové osoby:');
         if (!name || !name.trim()) return;
@@ -624,7 +628,6 @@
         }
       });
 
-      // Získání unikátních dlužníků
       const debtorNames = [...new Set(receivables.map(r => r.debtor.toUpperCase()))];
       const groupedContainer = document.getElementById('receivables-grouped');
 
@@ -686,7 +689,6 @@
           </div>
         `;
 
-        // 1. TLAČÍTKO: PŮJČIT / PŘIČÍST
         card.querySelector('.btn-add-debt').addEventListener('click', async () => {
           const catPrompt = `Vyber za co ${personName} dluží / půjčuje si:\n\n1 = Půjčky\n2 = Elektřina a drogerie\n3 = Fólie na bazén\n4 = Jiné (zadat vlastní název)`;
           const choice = prompt(catPrompt, '1');
@@ -706,7 +708,6 @@
 
           const dateStr = prompt('Datum vzniku dluhu (RRRR-MM-DD):', new Date().toISOString().slice(0, 10));
 
-          // Hledáme existující položku dané kategorie pro danou osobu
           let existingItem = personItems.find(i => i.category.toLowerCase() === chosenCategory.toLowerCase());
 
           if (existingItem) {
@@ -738,7 +739,6 @@
           await render();
         });
 
-        // 2. TLAČÍTKO: ZADAT ÚHRADU (ODEČÍST)
         card.querySelector('.btn-pay-debt').addEventListener('click', async () => {
           let catMenu = `Na kterou položku ${personName} platí?\n\n`;
           personItems.forEach((it, idx) => {
@@ -774,7 +774,6 @@
           await render();
         });
 
-        // 3. RUČNÍ EDITACE ČÁSTKY (✏️)
         card.querySelectorAll('.btn-edit-category').forEach(btn => {
           btn.addEventListener('click', async () => {
             const id = parseInt(btn.getAttribute('data-id'), 10);
@@ -801,7 +800,6 @@
         groupedContainer.appendChild(card);
       });
 
-      // Výpis mých dluhů k úhradě
       const debtsList = document.getElementById('debts-list');
       debts.forEach(debt => {
         if (!debt.paymentHistory) debt.paymentHistory = [];
@@ -946,27 +944,41 @@
       });
     }
 
-    // --- ZÁLOŽKA 4: NASTAVENÍ ---
+    // --- ZÁLOŽKA 4: NASTAVENÍ A BEZPEČNOST DAT ---
     async function renderSettings() {
       const container = document.getElementById('app-container');
+      
+      const storageStatusHtml = isStoragePersistent
+        ? `<span style="color: var(--accent-green); font-weight: bold;">✓ Trvale chráněno (systém Android data nesmaže)</span>`
+        : `<span style="color: var(--accent-amber); font-weight: bold;">⚡ Standardní lokální úložiště</span>`;
+
       container.innerHTML = `
         <div class="card">
-          <div class="card-title">Zálohování a obnova dat</div>
-          <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.4;">
-            Veškerá data jsou uložena v tomto zařízení (IndexedDB). Kdykoliv si můžeš stáhnout kompletní záložní soubor.
+          <div class="card-title">Stav ochrany dat</div>
+          <div style="font-size: 0.85rem; margin-bottom: 0.5rem;">${storageStatusHtml}</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+            Veškeré změny se okamžitě a trvale ukládají do lokální databáze (IndexedDB). Pro maximální jistotu proti smazání telefonu si stáhni zálohu nebo zkopíruj textový kód.
           </div>
+        </div>
 
-          <button id="btn-export-backup" class="btn btn-success" style="width: 100%; margin-bottom: 0.75rem;">
-            ⬇️ Stáhnout kompletní zálohu (JSON)
+        <div class="card">
+          <div class="card-title">Zálohování a obnova</div>
+
+          <button id="btn-export-backup" class="btn btn-success" style="width: 100%; margin-bottom: 0.6rem;">
+            ⬇️ Stáhnout soubor zálohy (.JSON)
           </button>
 
-          <label class="btn btn-secondary" style="width: 100%; margin-bottom: 0.75rem;">
+          <button id="btn-copy-backup" class="btn btn-primary" style="width: 100%; margin-bottom: 0.6rem;">
+            📋 Zkopírovat zálohu do schránky (pro e-mail/poznámky)
+          </button>
+
+          <label class="btn btn-secondary" style="width: 100%; margin-bottom: 0.6rem;">
             ⬆️ Obnovit data ze souboru
             <input type="file" id="input-restore" accept=".json" style="display: none;">
           </label>
 
           <button id="btn-force-reload-data" class="btn btn-danger" style="width: 100%; margin-top: 0.5rem;">
-            🔄 Synchronizovat přesné pohledávky k 15. 10. 2026
+            🔄 Reset do výchozího stavu k 15. 10. 2026
           </button>
         </div>
 
@@ -974,39 +986,44 @@
           <div class="card-title">Informace o aplikaci</div>
           <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
             <strong>Projekt:</strong> Koloběžníkův rozpočet<br>
-            <strong>Typ:</strong> Lokální finanční PWA<br>
-            <strong>Pohledávky:</strong> Obousměrná evidence (přičítání nových půjček i odečítání splátek s historií)
+            <strong>Typ:</strong> Offline PWA s trvalou databází IndexedDB<br>
+            <strong>Aktualizace:</strong> Data jsou uložena nezávisle na mezipaměti souborů
           </div>
         </div>
       `;
 
+      // 1. Export do souboru
       document.getElementById('btn-export-backup').addEventListener('click', async () => {
-        const backup = {
-          appName: 'KolobeznikRozpocet',
-          exportedAt: new Date().toISOString(),
-          data: {
-            recurring_templates: await dbGetAll('recurring_templates'),
-            monthly_expenses: await dbGetAll('monthly_expenses'),
-            debts_payable: await dbGetAll('debts_payable'),
-            debts_receivable: await dbGetAll('debts_receivable'),
-            savings_goals: await dbGetAll('savings_goals')
-          }
-        };
+        const backup = await getBackupPayload();
         const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `kolobeznik-rozpocet-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `kolobeznik-rozpocet-zaloha-${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
       });
 
+      // 2. Kopírování do schránky
+      document.getElementById('btn-copy-backup').addEventListener('click', async () => {
+        const backup = await getBackupPayload();
+        const jsonStr = JSON.stringify(backup);
+        try {
+          await navigator.clipboard.writeText(jsonStr);
+          alert('Kompletní záloha byla zkopírována do schránky! Můžeš si ji vložit (vložit/paste) kamkoliv do e-mailu nebo poznámek.');
+        } catch (err) {
+          prompt('Zkopíruj si tento text zálohy ručně (Ctrl+C nebo kopírovat):', jsonStr);
+        }
+      });
+
+      // 3. Reset do výchozího stavu
       document.getElementById('btn-force-reload-data').addEventListener('click', async () => {
-        if (confirm('Nastavit přesné pohledávky k 15. 10. 2026 (KOV 6 650 Kč, JIŘÍ 750 Kč, MAGDA 2 700 Kč)?')) {
+        if (confirm('Nastavit znovu výchozí stav pohledávek k 15. 10. 2026?')) {
           await seedInitialData(true);
           alert('Pohledávky byly nastaveny.');
           setTab('debts');
         }
       });
 
+      // 4. Import souboru
       document.getElementById('input-restore').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1036,6 +1053,20 @@
         };
         reader.readAsText(file);
       });
+    }
+
+    async function getBackupPayload() {
+      return {
+        appName: 'KolobeznikRozpocet',
+        exportedAt: new Date().toISOString(),
+        data: {
+          recurring_templates: await dbGetAll('recurring_templates'),
+          monthly_expenses: await dbGetAll('monthly_expenses'),
+          debts_payable: await dbGetAll('debts_payable'),
+          debts_receivable: await dbGetAll('debts_receivable'),
+          savings_goals: await dbGetAll('savings_goals')
+        }
+      };
     }
 
     async function render() {
