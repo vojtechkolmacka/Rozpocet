@@ -251,7 +251,6 @@
   </nav>
 
   <script>
-    // --- PWA INSTALACE A SERVICE WORKER ---
     let deferredPrompt = null;
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -268,7 +267,6 @@
       });
     }
 
-    // --- DATABÁZE A ÚLOŽIŠTĚ ---
     const DB_NAME = 'KolobeznikRozpocetDB';
     const DB_VERSION = 2;
 
@@ -428,7 +426,6 @@
       }
     }
 
-    // --- SPRÁVA OBDOBÍ ---
     const czechMonths = ["Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"];
     let viewDate = new Date();
 
@@ -479,6 +476,29 @@
       return created;
     }
 
+    // --- VÝPOČET KUMULATIVNÍHO POČÁTEČNÍHO ZŮSTATKU Z MINULÝCH MĚSÍCŮ ---
+    async function getStartingBalanceForPeriod(periodKey) {
+      const allExpenses = await dbGetAll('monthly_expenses');
+      const allIncomes = await dbGetAll('incomes');
+
+      // Všechny příjmy a výdaje přísně PŘED aktuálně vybraným měsícem
+      let pastIncomesCents = 0;
+      for (const inc of allIncomes) {
+        if (inc.period < periodKey) {
+          pastIncomesCents += inc.amountCents;
+        }
+      }
+
+      let pastPaidExpensesCents = 0;
+      for (const exp of allExpenses) {
+        if (exp.period < periodKey && exp.isPaid) {
+          pastPaidExpensesCents += exp.plannedAmountCents;
+        }
+      }
+
+      return pastIncomesCents - pastPaidExpensesCents;
+    }
+
     let activeTab = 'dashboard';
 
     document.getElementById('nav-dashboard').addEventListener('click', () => setTab('dashboard'));
@@ -498,7 +518,7 @@
       render();
     }
 
-    // --- ZÁLOŽKA 0: DASHBOARD ---
+    // --- ZÁLOŽKA 0: DASHBOARD S PROPOJENÝM POČÁTEČNÍM ZŮSTATKEM ---
     async function renderDashboard() {
       const curPeriod = formatPeriodKey(viewDate);
       const allExpenses = await dbGetAll('monthly_expenses');
@@ -517,7 +537,10 @@
       const allIncomes = await dbGetAll('incomes');
       const monthIncomes = allIncomes.filter(i => i.period === curPeriod);
       const totalIncomesCents = monthIncomes.reduce((sum, i) => sum + i.amountCents, 0);
-      const netCashFlowCents = totalIncomesCents - paidExpensesCents;
+
+      // Počáteční stav z minulých měsíců + tok tohoto měsíce
+      const startBalanceCents = await getStartingBalanceForPeriod(curPeriod);
+      const currentEndBalanceCents = startBalanceCents + totalIncomesCents - paidExpensesCents;
 
       const debts = await dbGetAll('debts_payable');
       const totalDebtCents = debts.reduce((sum, d) => sum + d.principalRemainingCents, 0);
@@ -528,18 +551,20 @@
       const goals = await dbGetAll('savings_goals');
       const totalAllocatedGoalsCents = goals.reduce((sum, g) => sum + (g.allocatedCents || 0), 0);
 
-      const netWorthCents = totalReceivableCents + totalAllocatedGoalsCents - totalDebtCents;
+      const netWorthCents = currentEndBalanceCents + totalReceivableCents + totalAllocatedGoalsCents - totalDebtCents;
 
       const container = document.getElementById('app-container');
       container.innerHTML = `
         <div class="card" style="border-left: 4px solid var(--accent);">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
-              <div class="card-title">Měsíční bilance (${czechMonths[viewDate.getMonth()]} ${viewDate.getFullYear()})</div>
-              <div class="metric-value" style="color: ${netCashFlowCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
-                ${netCashFlowCents >= 0 ? '+' : ''}${formatKc(netCashFlowCents)}
+              <div class="card-title">Peníze na účtu (${czechMonths[viewDate.getMonth()]} ${viewDate.getFullYear()})</div>
+              <div class="metric-value" style="color: ${currentEndBalanceCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
+                ${formatKc(currentEndBalanceCents)}
               </div>
-              <div class="metric-sub">Čistý tok (přijaté příjmy − zaplacené výdaje)</div>
+              <div class="metric-sub">
+                Počátek z minula: <strong>${formatKc(startBalanceCents)}</strong> | Tento měsíc: <strong>${totalIncomesCents - paidExpensesCents >= 0 ? '+' : ''}${formatKc(totalIncomesCents - paidExpensesCents)}</strong>
+              </div>
             </div>
             <button id="dash-btn-add-income" class="btn btn-success" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">+ Příjem</button>
           </div>
@@ -579,18 +604,18 @@
             <div>
               <div class="card-title">Úspory a finanční cíle</div>
               <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalAllocatedGoalsCents)}</div>
-              <div class="metric-sub">${goals.length} aktivních cílů (rezerva, zuby, koloběžka...)</div>
+              <div class="metric-sub">${goals.length} aktivních cílů (kliknutím upravíš)</div>
             </div>
             <button class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">Otevřít</button>
           </div>
         </div>
 
         <div class="card" style="border: 1px solid rgba(255, 255, 255, 0.1);">
-          <div class="card-title">Čistá bilance závazků a pohledávek</div>
+          <div class="card-title">Celková finanční pozice</div>
           <div class="metric-value" style="color: ${netWorthCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
             ${formatKc(netWorthCents)}
           </div>
-          <div class="metric-sub">Rozdíl: (pohledávky + úspory) mínus tvé evidované dluhy</div>
+          <div class="metric-sub">Peníze na účtu + pohledávky + cíle − evidované dluhy</div>
         </div>
       `;
 
@@ -1105,7 +1130,7 @@
       });
     }
 
-    // --- ZÁLOŽKA 3: CÍLE ---
+    // --- ZÁLOŽKA 3: PLNOHODNOTNĚ EDITOVATELNÉ CÍLE ---
     async function renderGoals() {
       const goals = await dbGetAll('savings_goals');
       const totalAllocatedCents = goals.reduce((sum, g) => sum + (g.allocatedCents || 0), 0);
@@ -1122,10 +1147,26 @@
           <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
             Plnění finančních cílů
           </h2>
+          <button id="btn-add-new-goal" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">+ Nový cíl</button>
         </div>
 
         <div id="goals-list" class="item-list"></div>
       `;
+
+      // Přidání nového cíle
+      document.getElementById('btn-add-new-goal').addEventListener('click', async () => {
+        const name = prompt('Název nového cíle (např. Servis auta, Dovolená):');
+        if (!name || !name.trim()) return;
+        const targetStr = prompt(`Cílová částka pro "${name}" v Kč (nebo 0 pro bez limitu):`, '10000');
+        const startStr = prompt('Počáteční již naspořená částka v Kč:', '0');
+
+        await dbAdd('savings_goals', {
+          name: name.trim(),
+          targetCents: toCents(targetStr),
+          allocatedCents: toCents(startStr)
+        });
+        await render();
+      });
 
       const listContainer = document.getElementById('goals-list');
       goals.forEach(goal => {
@@ -1152,13 +1193,14 @@
           </div>
 
           <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-            <button class="btn btn-secondary btn-add-funds" style="font-size: 0.75rem;">+ Přidat peníze</button>
-            <button class="btn btn-secondary btn-edit-goal" style="font-size: 0.75rem;">Upravit cíl</button>
+            <button class="btn btn-secondary btn-add-funds" style="flex: 1; font-size: 0.75rem;">+ Přidat peníze</button>
+            <button class="btn btn-secondary btn-edit-goal" style="flex: 1; font-size: 0.75rem;">✏️ Upravit cíl</button>
           </div>
         `;
 
+        // Přidání peněz k cíli
         card.querySelector('.btn-add-funds').addEventListener('click', async () => {
-          const val = prompt(`Kolik Kč přidat na "${goal.name}"?`);
+          const val = prompt(`Kolik Kč chceš přidat na "${goal.name}"?`);
           if (val && val.trim()) {
             goal.allocatedCents = (goal.allocatedCents || 0) + toCents(val);
             await dbPut('savings_goals', goal);
@@ -1166,12 +1208,45 @@
           }
         });
 
+        // Plná editace cíle (částka, název, smazání, oprava aktuálního stavu)
         card.querySelector('.btn-edit-goal').addEventListener('click', async () => {
-          const val = prompt(`Cílová částka pro "${goal.name}" v Kč:`, (goal.targetCents / 100).toFixed(0));
-          if (val !== null && val.trim() !== '') {
-            goal.targetCents = toCents(val);
-            await dbPut('savings_goals', goal);
-            await render();
+          const action = prompt(
+            `Úprava cíle: ${goal.name}\n` +
+            `Aktuálně naspořeno: ${(goal.allocatedCents / 100).toFixed(0)} Kč\n` +
+            `Cílová částka: ${(goal.targetCents / 100).toFixed(0)} Kč\n\n` +
+            `1 = Změnit cílovou částku\n` +
+            `2 = Změnit aktuálně naspořenou částku\n` +
+            `3 = Přejmenovat cíl\n` +
+            `4 = Smazat tento cíl`,
+            '1'
+          );
+
+          if (action === '1') {
+            const val = prompt(`Zadej novou cílovou částku pro "${goal.name}" v Kč:`, (goal.targetCents / 100).toFixed(0));
+            if (val !== null && val.trim() !== '') {
+              goal.targetCents = toCents(val);
+              await dbPut('savings_goals', goal);
+              await render();
+            }
+          } else if (action === '2') {
+            const val = prompt(`Zadej skutečnou aktuálně naspořenou částku pro "${goal.name}" v Kč:`, (goal.allocatedCents / 100).toFixed(0));
+            if (val !== null && val.trim() !== '') {
+              goal.allocatedCents = toCents(val);
+              await dbPut('savings_goals', goal);
+              await render();
+            }
+          } else if (action === '3') {
+            const val = prompt('Nový název cíle:', goal.name);
+            if (val && val.trim()) {
+              goal.name = val.trim();
+              await dbPut('savings_goals', goal);
+              await render();
+            }
+          } else if (action === '4') {
+            if (confirm(`Opravdu smazat finanční cíl "${goal.name}"?`)) {
+              await dbDelete('savings_goals', goal.id);
+              await render();
+            }
           }
         });
 
@@ -1194,7 +1269,7 @@
             📲 Nainstalovat Koloběžníkův rozpočet do telefonu
           </button>
           <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
-            Pokud se tlačítko nezobrazuje, klepni v Chrome nahoře na <strong>tři tečky</strong> a zvol <strong>„Nainstalovat aplikaci“</strong> (nebo „Přidat na plochu“).
+            Aplikace běží jako samostatná PWA s plynulým přenosem peněz mezi měsíci.
           </div>
         </div>
 
@@ -1231,8 +1306,8 @@
           <div class="card-title">Informace o aplikaci</div>
           <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
             <strong>Projekt:</strong> Koloběžníkův rozpočet<br>
-            <strong>Typ:</strong> Offline PWA s trvalou databází IndexedDB<br>
-            <strong>Podpora PWA:</strong> Instalovatelná webová aplikace (Android / Desktop)
+            <strong>Typ:</strong> Offline PWA s plynulou návazností měsíců<br>
+            <strong>Propojení:</strong> Peníze na účtu z minulého měsíce se automaticky stávají počátečním zůstatkem nového měsíce
           </div>
         </div>
       `;
