@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="apple-touch-icon" href="./icon.svg">
   <title>Koloběžníkův rozpočet</title>
   <style>
     :root {
@@ -14,6 +17,7 @@
       --accent: #38bdf8;
       --accent-green: #22c55e;
       --accent-red: #ef4444;
+      --accent-amber: #f59e0b;
       --border: #334155;
     }
 
@@ -95,7 +99,7 @@
       margin-top: 0.2rem;
     }
 
-    .expense-list {
+    .item-list {
       display: flex;
       flex-direction: column;
       gap: 0.6rem;
@@ -109,7 +113,6 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      cursor: pointer;
       user-select: none;
       transition: border-color 0.15s ease;
     }
@@ -119,20 +122,22 @@
       background-color: rgba(34, 197, 94, 0.05);
     }
 
+    .expense-item.paid .expense-name {
+      color: var(--text-muted);
+      text-decoration: line-through;
+    }
+
     .expense-info {
       display: flex;
       flex-direction: column;
       gap: 0.2rem;
+      flex: 1;
+      cursor: pointer;
     }
 
     .expense-name {
       font-size: 0.95rem;
       font-weight: 600;
-    }
-
-    .expense-item.paid .expense-name {
-      color: var(--text-muted);
-      text-decoration: line-through;
     }
 
     .expense-meta {
@@ -143,25 +148,27 @@
     .expense-right {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.6rem;
       text-align: right;
     }
 
     .expense-amount {
       font-size: 0.95rem;
       font-weight: 700;
+      cursor: pointer;
     }
 
     .check-circle {
-      width: 24px;
-      height: 24px;
+      width: 26px;
+      height: 26px;
       border-radius: 50%;
       border: 2px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       color: transparent;
+      cursor: pointer;
     }
 
     .expense-item.paid .check-circle {
@@ -169,6 +176,76 @@
       border-color: var(--accent-green);
       color: #000;
       font-weight: bold;
+    }
+
+    .btn-icon {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      padding: 0.3rem 0.4rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    .btn-primary {
+      background-color: var(--accent);
+      color: #000;
+    }
+
+    .btn-success {
+      background-color: var(--accent-green);
+      color: #000;
+    }
+
+    .btn-secondary {
+      background-color: var(--border);
+      color: var(--text-main);
+    }
+
+    .btn-danger {
+      background-color: rgba(239, 68, 68, 0.2);
+      color: var(--accent-red);
+      border: 1px solid var(--accent-red);
+    }
+
+    .badge-unverified {
+      background-color: rgba(245, 158, 11, 0.2);
+      color: var(--accent-amber);
+      border: 1px solid var(--accent-amber);
+      font-size: 0.7rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      display: inline-block;
+      margin-top: 0.25rem;
+    }
+
+    .progress-bar-bg {
+      background-color: var(--border);
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+
+    .progress-bar-fill {
+      background-color: var(--accent-green);
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease;
     }
 
     .nav-bar {
@@ -210,43 +287,42 @@
   </header>
 
   <main id="app-container">
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">Zbývá doplatit</div>
-        <div id="sum-unpaid" class="metric-value" style="color: var(--accent-red);">0 Kč</div>
-        <div id="count-unpaid" class="metric-sub">0 nezaplaceno</div>
-      </div>
-      <div class="card">
-        <div class="card-title">Zaplaceno</div>
-        <div id="sum-paid" class="metric-value" style="color: var(--accent-green);">0 Kč</div>
-        <div id="count-paid" class="metric-sub">0 položek</div>
-      </div>
-    </div>
-
-    <div style="margin: 1.25rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
-      <h2 style="font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
-        Platby pro tento měsíc
-      </h2>
-      <span style="font-size: 0.75rem; color: var(--text-muted);">Klepnutím označíš</span>
-    </div>
-
-    <div id="expenses-list" class="expense-list">
-      <!-- Položky se načtou dynamicky -->
-    </div>
+    <!-- Obsah se generuje dynamicky -->
   </main>
 
   <nav class="nav-bar">
-    <button class="nav-btn active">Platby</button>
-    <button class="nav-btn">Půjčky</button>
-    <button class="nav-btn">Cíle</button>
-    <button class="nav-btn">Nastavení</button>
+    <button id="nav-expenses" class="nav-btn active">Platby</button>
+    <button id="nav-debts" class="nav-btn">Půjčky & Dluhy</button>
+    <button id="nav-goals" class="nav-btn">Cíle</button>
+    <button id="nav-settings" class="nav-btn">Nastavení</button>
   </nav>
 
   <script type="module">
-    import { openDB, formatKc, dbGetAll } from './db.js';
+    import { openDB, formatKc, toCents, dbGetAll } from './db.js';
     import { seedInitialData } from './initial-data.js';
-    import { getPeriodKey, ensureMonthInitialized, toggleExpensePaid, getMonthSummary } from './budget.js';
+    import { 
+      getPeriodKey, 
+      ensureMonthInitialized, 
+      toggleExpensePaid, 
+      getMonthSummary, 
+      addNewExpense, 
+      updateExpense, 
+      removeExpense 
+    } from './budget.js';
+    import { getDebtsWithMonthlyStatus, confirmDebtPayment, revertDebtPayment, updateDebtPrincipal } from './debts.js';
+    import { getAllReceivables, recordReceivablePayment, updateReceivable, addReceivable, getAllGoals, addMoneyToGoal, updateGoal } from './receivables-goals.js';
+    import { downloadBackupFile, restoreBackupData } from './backup.js';
 
+    // Registrace Service Workera pro offline fungování PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.warn('Registrace Service Workera se nezdařila:', err);
+        });
+      });
+    }
+
+    let activeTab = 'expenses';
     const currentPeriod = getPeriodKey();
 
     const czechMonths = [
@@ -256,26 +332,80 @@
     const now = new Date();
     document.getElementById('current-period').textContent = `${czechMonths[now.getMonth()]} ${now.getFullYear()}`;
 
-    async function render() {
-      await openDB();
-      await seedInitialData();
-      await ensureMonthInitialized(currentPeriod);
+    // Navigace
+    document.getElementById('nav-expenses').addEventListener('click', () => setTab('expenses'));
+    document.getElementById('nav-debts').addEventListener('click', () => setTab('debts'));
+    document.getElementById('nav-goals').addEventListener('click', () => setTab('goals'));
+    document.getElementById('nav-settings').addEventListener('click', () => setTab('settings'));
 
+    function setTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      if (tab === 'expenses') document.getElementById('nav-expenses').classList.add('active');
+      if (tab === 'debts') document.getElementById('nav-debts').classList.add('active');
+      if (tab === 'goals') document.getElementById('nav-goals').classList.add('active');
+      if (tab === 'settings') document.getElementById('nav-settings').classList.add('active');
+      render();
+    }
+
+    // --- ZÁLOŽKA 1: PLATBY ---
+    async function renderExpenses() {
       const summary = await getMonthSummary(currentPeriod);
       const allExpenses = await dbGetAll('monthly_expenses');
       const monthExpenses = allExpenses.filter(e => e.period === currentPeriod);
 
-      // Aktualizace horních karet
-      document.getElementById('sum-unpaid').textContent = formatKc(summary.totalUnpaidExpensesCents);
-      document.getElementById('count-unpaid').textContent = `${summary.expensesCount - summary.paidCount} z ${summary.expensesCount} položek`;
-      
-      document.getElementById('sum-paid').textContent = formatKc(summary.totalPaidExpensesCents);
-      document.getElementById('count-paid').textContent = `${summary.paidCount} hotovo`;
+      const container = document.getElementById('app-container');
+      container.innerHTML = `
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Zbývá doplatit</div>
+            <div class="metric-value" style="color: var(--accent-red);">${formatKc(summary.totalUnpaidExpensesCents)}</div>
+            <div class="metric-sub">${summary.expensesCount - summary.paidCount} z ${summary.expensesCount} položek</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Zaplaceno</div>
+            <div class="metric-value" style="color: var(--accent-green);">${formatKc(summary.totalPaidExpensesCents)}</div>
+            <div class="metric-sub">${summary.paidCount} hotovo</div>
+          </div>
+        </div>
 
-      // Vykreslení seznamu položek
+        <button id="btn-add-expense" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">
+          + Přidat novou platbu / výdaj
+        </button>
+
+        <div style="margin: 0.5rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
+          <h2 style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
+            Platby v tomto měsíci
+          </h2>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">Kolečko = zaplaceno | ✏️ = úprava</span>
+        </div>
+
+        <div id="expenses-list" class="item-list"></div>
+      `;
+
+      document.getElementById('btn-add-expense').addEventListener('click', async () => {
+        const name = prompt('Název nové platby (např. Netflix, Zubař, Nájem):');
+        if (!name || !name.trim()) return;
+
+        const amountStr = prompt(`Částka pro "${name}" v Kč:`);
+        if (!amountStr || !amountStr.trim()) return;
+
+        const dueDayStr = prompt('Den splatnosti v měsíci (1 až 31):', '15');
+        const isRecurring = confirm(`Má se "${name}" opakovat každý měsíc automaticky?\n\n[OK] = Ano, trvalá měsíční platba\n[Zrušit] = Ne, pouze jednorázový výdaj na tento měsíc`);
+
+        await addNewExpense({
+          name: name.trim(),
+          amountCents: toCents(amountStr),
+          category: isRecurring ? 'Pravidelné' : 'Jednorázové',
+          dueDay: parseInt(dueDayStr, 10) || 15,
+          periodKey: currentPeriod,
+          isRecurring
+        });
+
+        await render();
+      });
+
       const listContainer = document.getElementById('expenses-list');
-      listContainer.innerHTML = '';
-
       monthExpenses.forEach(item => {
         const div = document.createElement('div');
         div.className = `expense-item ${item.isPaid ? 'paid' : ''}`;
@@ -286,17 +416,397 @@
           </div>
           <div class="expense-right">
             <div class="expense-amount">${formatKc(item.plannedAmountCents)}</div>
+            <button class="btn-icon btn-edit-item" title="Upravit / Smazat">✏️</button>
             <div class="check-circle">✓</div>
           </div>
         `;
 
-        div.addEventListener('click', async () => {
+        const checkCircle = div.querySelector('.check-circle');
+        const infoArea = div.querySelector('.expense-info');
+        const toggleHandler = async () => {
           await toggleExpensePaid(item.id, !item.isPaid);
           await render();
+        };
+        checkCircle.addEventListener('click', toggleHandler);
+        infoArea.addEventListener('click', toggleHandler);
+
+        const btnEdit = div.querySelector('.btn-edit-item');
+        btnEdit.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const action = prompt(
+            `Úprava položky: ${item.name}\nAktuální částka: ${(item.plannedAmountCents / 100).toFixed(2)} Kč\n\nVyber akci:\n1 = Změnit částku\n2 = Přejmenovat\n3 = Smazat položku\n\nZadej číslo 1, 2 nebo 3:`,
+            '1'
+          );
+
+          if (action === '1') {
+            const newAmount = prompt(`Nová částka pro ${item.name} v Kč:`, (item.plannedAmountCents / 100).toFixed(2));
+            if (newAmount !== null && newAmount.trim() !== '') {
+              const applyToFuture = item.templateId 
+                ? confirm('Chceš tuto novou částku nastavit i pro všechny budoucí měsíce?') 
+                : false;
+              await updateExpense(item.id, {
+                plannedAmountCents: toCents(newAmount),
+                updateTemplate: applyToFuture
+              });
+              await render();
+            }
+          } else if (action === '2') {
+            const newName = prompt('Nový název:', item.name);
+            if (newName && newName.trim()) {
+              const applyToFuture = item.templateId 
+                ? confirm('Chceš nový název nastavit i pro budoucí měsíce?') 
+                : false;
+              await updateExpense(item.id, {
+                name: newName.trim(),
+                updateTemplate: applyToFuture
+              });
+              await render();
+            }
+          } else if (action === '3') {
+            const confirmDelete = confirm(`Opravdu chceš smazat platbu "${item.name}"?`);
+            if (confirmDelete) {
+              const deleteFromTemplates = item.templateId 
+                ? confirm('Smazat tuto platbu i ze šablon, aby se nevytvářela v dalších měsících?') 
+                : false;
+              await removeExpense(item.id, deleteFromTemplates);
+              await render();
+            }
+          }
         });
 
         listContainer.appendChild(div);
       });
+    }
+
+    // --- ZÁLOŽKA 2: PŮJČKY & POHLEDÁVKY ---
+    async function renderDebts() {
+      const debts = await getDebtsWithMonthlyStatus(currentPeriod);
+      const totalDebtCents = debts.reduce((sum, d) => sum + d.principalRemainingCents, 0);
+
+      const receivables = await getAllReceivables();
+      const totalReceivableCents = receivables.reduce((sum, r) => sum + r.remainingAmountCents, 0);
+
+      const container = document.getElementById('app-container');
+      container.innerHTML = `
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Moje dluhy</div>
+            <div class="metric-value" style="color: var(--accent-red);">${formatKc(totalDebtCents)}</div>
+            <div class="metric-sub">Pravidlo 10. dne</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Dluží mně</div>
+            <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalReceivableCents)}</div>
+            <div class="metric-sub">${receivables.length} pohledávky</div>
+          </div>
+        </div>
+
+        <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 1rem 0 0.5rem 0;">
+          Moje půjčky k úhradě
+        </h2>
+        <div id="debts-list" class="item-list"></div>
+
+        <div style="margin: 1.5rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
+          <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
+            Pohledávky (Dluží mně)
+          </h2>
+          <button id="btn-add-receivable" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">+ Nová pohledávka</button>
+        </div>
+        <div id="receivables-list" class="item-list"></div>
+      `;
+
+      const debtsList = document.getElementById('debts-list');
+      debts.forEach(debt => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.marginBottom = '0.5rem';
+
+        const statusBadge = debt.isPaidThisMonth
+          ? `<span style="color: var(--accent-green); font-size: 0.8rem; font-weight: 600;">✓ Splátka uhrazena</span>`
+          : `<span style="color: var(--accent-amber); font-size: 0.8rem; font-weight: 600;">⏳ Čeká na potvrzení</span>`;
+
+        card.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+            <div>
+              <div style="font-size: 1.05rem; font-weight: 700;">${debt.name}</div>
+              <div class="expense-meta">Měsíční splátka: ${formatKc(debt.monthlyPaymentCents)} (k 10. dni)</div>
+            </div>
+            ${statusBadge}
+          </div>
+
+          <div style="margin: 0.5rem 0;">
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Zbývající jistina:</div>
+            <div style="font-size: 1.3rem; font-weight: 800;">${formatKc(debt.principalRemainingCents)}</div>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            ${debt.isPaidThisMonth
+              ? `<button class="btn btn-danger btn-revert">Zrušit potvrzení platby</button>`
+              : `<button class="btn btn-success btn-confirm">Potvrdit splátku ${formatKc(debt.monthlyPaymentCents)}</button>`
+            }
+            <button class="btn btn-secondary btn-edit">Upravit jistinu</button>
+          </div>
+        `;
+
+        const btnConfirm = card.querySelector('.btn-confirm');
+        if (btnConfirm) {
+          btnConfirm.addEventListener('click', async () => {
+            await confirmDebtPayment(debt.id, currentPeriod);
+            await render();
+          });
+        }
+
+        const btnRevert = card.querySelector('.btn-revert');
+        if (btnRevert) {
+          btnRevert.addEventListener('click', async () => {
+            await revertDebtPayment(debt.id, currentPeriod);
+            await render();
+          });
+        }
+
+        const btnEdit = card.querySelector('.btn-edit');
+        btnEdit.addEventListener('click', async () => {
+          const currentAmount = (debt.principalRemainingCents / 100).toFixed(2);
+          const entered = prompt(`Zadej nový skutečný zůstatek pro ${debt.name} v Kč:`, currentAmount);
+          if (entered !== null && entered.trim() !== '') {
+            await updateDebtPrincipal(debt.id, toCents(entered));
+            await render();
+          }
+        });
+
+        debtsList.appendChild(card);
+      });
+
+      const recList = document.getElementById('receivables-list');
+      receivables.forEach(rec => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.marginBottom = '0.5rem';
+
+        const unverifiedBadge = !rec.verified 
+          ? `<div class="badge-unverified">⚠️ Vyžaduje ověření: ${rec.note}</div>` 
+          : '';
+
+        card.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <div style="font-size: 1rem; font-weight: 700;">${rec.debtor}</div>
+              <div class="expense-meta">${rec.reason}</div>
+              ${unverifiedBadge}
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 1.15rem; font-weight: 800; color: var(--accent-green);">${formatKc(rec.remainingAmountCents)}</div>
+              <div class="expense-meta">zbývá doplatit</div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            <button class="btn btn-secondary btn-pay-rec" style="font-size: 0.75rem;">Přijata platba</button>
+            <button class="btn btn-secondary btn-edit-rec" style="font-size: 0.75rem;">Upravit</button>
+            ${!rec.verified ? `<button class="btn btn-success btn-verify" style="font-size: 0.75rem;">Ověřit</button>` : ''}
+          </div>
+        `;
+
+        card.querySelector('.btn-pay-rec').addEventListener('click', async () => {
+          const received = prompt(`Kolik Kč ti ${rec.debtor} právě vrátil/a?`, (rec.remainingAmountCents / 100).toFixed(2));
+          if (received && received.trim()) {
+            await recordReceivablePayment(rec.id, toCents(received));
+            await render();
+          }
+        });
+
+        card.querySelector('.btn-edit-rec').addEventListener('click', async () => {
+          const newAmount = prompt(`Zadej novou zbývající částku pro ${rec.debtor} v Kč:`, (rec.remainingAmountCents / 100).toFixed(2));
+          if (newAmount !== null && newAmount.trim() !== '') {
+            await updateReceivable(rec.id, { remainingAmountCents: toCents(newAmount) });
+            await render();
+          }
+        });
+
+        const btnVerify = card.querySelector('.btn-verify');
+        if (btnVerify) {
+          btnVerify.addEventListener('click', async () => {
+            const confirmedAmount = prompt('Zadej ověřenou správnou celkovou částku pro Magdu v Kč:', (rec.remainingAmountCents / 100).toFixed(2));
+            if (confirmedAmount !== null && confirmedAmount.trim() !== '') {
+              await updateReceivable(rec.id, {
+                remainingAmountCents: toCents(confirmedAmount),
+                originalAmountCents: toCents(confirmedAmount),
+                verified: true,
+                note: 'Ověřeno uživatelem'
+              });
+              await render();
+            }
+          });
+        }
+
+        recList.appendChild(card);
+      });
+
+      document.getElementById('btn-add-receivable').addEventListener('click', async () => {
+        const debtor = prompt('Jméno nebo přezdívka dlužníka:');
+        if (!debtor || !debtor.trim()) return;
+        const reason = prompt('Důvod půjčky:');
+        const amount = prompt('Půjčená částka v Kč:');
+        if (amount && amount.trim()) {
+          await addReceivable({
+            debtor: debtor.trim(),
+            reason: reason ? reason.trim() : '',
+            amountCents: toCents(amount),
+            verified: true
+          });
+          await render();
+        }
+      });
+    }
+
+    // --- ZÁLOŽKA 3: CÍLE ---
+    async function renderGoals() {
+      const goals = await getAllGoals();
+      const totalAllocatedCents = goals.reduce((sum, g) => sum + (g.allocatedCents || 0), 0);
+
+      const container = document.getElementById('app-container');
+      container.innerHTML = `
+        <div class="card">
+          <div class="card-title">Celkem vyčleněno na cíle</div>
+          <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalAllocatedCents)}</div>
+          <div class="metric-sub">Peníze určené na konkrétní rezervy a plány</div>
+        </div>
+
+        <div style="margin: 1rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
+          <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
+            Plnění finančních cílů
+          </h2>
+        </div>
+
+        <div id="goals-list" class="item-list"></div>
+      `;
+
+      const listContainer = document.getElementById('goals-list');
+      goals.forEach(goal => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.marginBottom = '0.75rem';
+
+        const percent = goal.targetCents > 0 
+          ? Math.min(100, Math.round(((goal.allocatedCents || 0) / goal.targetCents) * 100))
+          : 0;
+
+        card.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <div style="font-size: 1rem; font-weight: 700;">${goal.name}</div>
+              <div class="expense-meta">Cíl: ${goal.targetCents > 0 ? formatKc(goal.targetCents) : 'Bez limitu'}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 1.1rem; font-weight: 800; color: var(--accent-green);">${formatKc(goal.allocatedCents || 0)}</div>
+              <div class="expense-meta">${percent} % splněno</div>
+            </div>
+          </div>
+
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width: ${percent}%;"></div>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            <button class="btn btn-secondary btn-add-funds" style="font-size: 0.75rem;">+ Přidat peníze</button>
+            <button class="btn btn-secondary btn-edit-goal" style="font-size: 0.75rem;">Upravit cíl</button>
+          </div>
+        `;
+
+        card.querySelector('.btn-add-funds').addEventListener('click', async () => {
+          const added = prompt(`Kolik Kč chceš přidat na cíl "${goal.name}"?`);
+          if (added && added.trim()) {
+            await addMoneyToGoal(goal.id, toCents(added));
+            await render();
+          }
+        });
+
+        card.querySelector('.btn-edit-goal').addEventListener('click', async () => {
+          const currentTarget = (goal.targetCents / 100).toFixed(0);
+          const newTarget = prompt(`Zadej novou cílovou částku pro "${goal.name}" v Kč:`, currentTarget);
+          if (newTarget !== null && newTarget.trim() !== '') {
+            await updateGoal(goal.id, { targetCents: toCents(newTarget) });
+            await render();
+          }
+        });
+
+        listContainer.appendChild(card);
+      });
+    }
+
+    // --- ZÁLOŽKA 4: NASTAVENÍ A ZÁLOHOVÁNÍ ---
+    async function renderSettings() {
+      const container = document.getElementById('app-container');
+      container.innerHTML = `
+        <div class="card">
+          <div class="card-title">Zálohování a bezpečnost dat</div>
+          <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.4;">
+            Veškerá data jsou bezpečně uložena v tomto zařízení (IndexedDB). Pro jistotu si můžeš kdykoliv stáhnout soubor se zálohou do mobilu nebo počítače.
+          </div>
+
+          <button id="btn-export-backup" class="btn btn-success" style="width: 100%; margin-bottom: 0.75rem;">
+            ⬇️ Stáhnout kompletní zálohu (JSON)
+          </button>
+
+          <label class="btn btn-secondary" style="width: 100%; margin-bottom: 0.75rem;">
+            ⬆️ Obnovit data ze souboru
+            <input type="file" id="input-restore" accept=".json" style="display: none;">
+          </label>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Informace o aplikaci</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
+            <strong>Projekt:</strong> Koloběžníkův rozpočet<br>
+            <strong>Typ:</strong> Lokální finanční PWA<br>
+            <strong>Režim:</strong> Offline ready (IndexedDB + Service Worker)<br>
+            <strong>Aritmetika:</strong> Haléřová celočíselná matematika (bez zaokrouhlovacích chyb)
+          </div>
+        </div>
+      `;
+
+      document.getElementById('btn-export-backup').addEventListener('click', async () => {
+        await downloadBackupFile();
+      });
+
+      document.getElementById('input-restore').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const confirmRestore = confirm('VAROVÁNÍ: Obnova dat ze souboru přepíše aktuální stav databáze daty ze zálohy.\n\nChceš opravdu pokračovat?');
+        if (!confirmRestore) {
+          e.target.value = '';
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+          try {
+            await restoreBackupData(evt.target.result);
+            alert('Záloha byla úspěšně obnovena!');
+            setTab('expenses');
+          } catch (err) {
+            alert(`Chyba při obnově zálohy: ${err.message}`);
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    async function render() {
+      await openDB();
+      await seedInitialData();
+      await ensureMonthInitialized(currentPeriod);
+
+      if (activeTab === 'expenses') {
+        await renderExpenses();
+      } else if (activeTab === 'debts') {
+        await renderDebts();
+      } else if (activeTab === 'goals') {
+        await renderGoals();
+      } else if (activeTab === 'settings') {
+        await renderSettings();
+      }
     }
 
     render();
