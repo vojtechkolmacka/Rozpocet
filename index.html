@@ -236,6 +236,27 @@
       cursor: pointer;
     }
 
+    /* Roční lišta tabulky */
+    .month-bar-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .month-bar-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .month-bar-sub {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
     .nav-bar {
       position: fixed;
       bottom: 0;
@@ -256,8 +277,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      font-size: 0.75rem;
-      padding: 0.35rem 0.6rem;
+      font-size: 0.7rem;
+      padding: 0.35rem 0.45rem;
       cursor: pointer;
     }
 
@@ -285,8 +306,9 @@
   <nav class="nav-bar">
     <button id="nav-dashboard" class="nav-btn active">Přehled</button>
     <button id="nav-expenses" class="nav-btn">Platby</button>
-    <button id="nav-debts" class="nav-btn">Dluhy & Pohledávky</button>
+    <button id="nav-debts" class="nav-btn">Dluhy</button>
     <button id="nav-goals" class="nav-btn">Cíle</button>
+    <button id="nav-stats" class="nav-btn">📊 Bilance</button>
     <button id="nav-settings" class="nav-btn">Nastavení</button>
   </nav>
 
@@ -428,7 +450,6 @@
       });
     }
 
-    // --- VÝCHOZÍ CÍLE S PŘESNÝMI POZICEMI ---
     async function seedInitialData(forceReload = false) {
       const currentInitialBalance = await getConfig('initial_account_balance', null);
       if (currentInitialBalance === null || forceReload) {
@@ -495,6 +516,7 @@
 
     const czechMonths = ["Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"];
     let viewDate = new Date();
+    let statsYear = new Date().getFullYear();
 
     function formatPeriodKey(d) {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -561,14 +583,12 @@
       return baseInitialBalance + totalIncomesCents - totalPaidExpensesCents;
     }
 
-    // Načte cíle a normalizuje priority (1, 2, 3...)
     async function getSortedGoalsFromDB() {
       const goals = await dbGetAll('savings_goals');
       goals.sort((a, b) => (Number(a.priority) || 99) - (Number(b.priority) || 99));
       return goals;
     }
 
-    // Uloží srovnané priority zpět do DB
     async function reassignAndSavePriorities(goalsArray) {
       for (let i = 0; i < goalsArray.length; i++) {
         goalsArray[i].priority = i + 1;
@@ -630,12 +650,13 @@
       return `<svg viewBox="0 0 36 36" class="chart-svg">${paths}</svg>`;
     }
 
-    let activeTab = 'goals'; // Otevřeme rovnou záložku cílů pro kontrolu
+    let activeTab = 'dashboard';
 
     document.getElementById('nav-dashboard').addEventListener('click', () => setTab('dashboard'));
     document.getElementById('nav-expenses').addEventListener('click', () => setTab('expenses'));
     document.getElementById('nav-debts').addEventListener('click', () => setTab('debts'));
     document.getElementById('nav-goals').addEventListener('click', () => setTab('goals'));
+    document.getElementById('nav-stats').addEventListener('click', () => setTab('stats'));
     document.getElementById('nav-settings').addEventListener('click', () => setTab('settings'));
 
     function setTab(tab) {
@@ -645,6 +666,7 @@
       if (tab === 'expenses') document.getElementById('nav-expenses').classList.add('active');
       if (tab === 'debts') document.getElementById('nav-debts').classList.add('active');
       if (tab === 'goals') document.getElementById('nav-goals').classList.add('active');
+      if (tab === 'stats') document.getElementById('nav-stats').classList.add('active');
       if (tab === 'settings') document.getElementById('nav-settings').classList.add('active');
       render();
     }
@@ -1303,7 +1325,7 @@
       });
     }
 
-    // --- ZÁLOŽKA 3: CHYTRÉ CÍLE S PLNOU A SPOLEHLIVOU ZMĚNOU POŘADÍ ---
+    // --- ZÁLOŽKA 3: CÍLE S PŘEHAZOVÁNÍM PRIORIT ---
     async function renderGoals() {
       const curPeriod = formatPeriodKey(viewDate);
       const currentAccountBalanceCents = await getCurrentAccountBalance(curPeriod);
@@ -1420,7 +1442,6 @@
             </span>
           </div>
 
-          <!-- VELKÁ TLÍČÍTKA PRO SNADNÉ PŘESOUVÁNÍ NA MOBILU -->
           <div style="display: flex; gap: 0.35rem; margin-top: 0.75rem;">
             <button class="btn btn-secondary btn-move-up" data-idx="${idx}" style="flex: 1;" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>
               ▲ Nahoru
@@ -1437,7 +1458,6 @@
           </div>
         `;
 
-        // Posun NAHORU
         const btnUp = card.querySelector('.btn-move-up');
         if (btnUp && idx > 0) {
           btnUp.addEventListener('click', async () => {
@@ -1449,7 +1469,6 @@
           });
         }
 
-        // Posun DOLŮ
         const btnDown = card.querySelector('.btn-move-down');
         if (btnDown && idx < smartGoals.length - 1) {
           btnDown.addEventListener('click', async () => {
@@ -1461,7 +1480,6 @@
           });
         }
 
-        // Klepnutí na štítek #1, #2 pro přímé zadání pozice
         card.querySelector('.btn-pick-prio').addEventListener('click', async () => {
           const newPosStr = prompt(`Zadej novou pozici pro "${goal.name}" (1 až ${smartGoals.length}):`, (idx + 1).toString());
           if (!newPosStr) return;
@@ -1475,14 +1493,12 @@
           }
         });
 
-        // Odložit / Aktivovat
         card.querySelector('.btn-toggle-pause').addEventListener('click', async () => {
           goal.paused = !goal.paused;
           await dbPut('savings_goals', goal);
           await render();
         });
 
-        // Úprava částky, názvu, smazání
         card.querySelector('.btn-edit-goal').addEventListener('click', async () => {
           const action = prompt(
             `Úprava: ${goal.name}\n` +
@@ -1521,7 +1537,130 @@
       });
     }
 
-    // --- ZÁLOŽKA 4: NASTAVENÍ ---
+    // --- ZÁLOŽKA 4: 📊 MĚSÍČNÍ A ROČNÍ BILANCE ---
+    async function renderStats() {
+      const allExpenses = await dbGetAll('monthly_expenses');
+      const allIncomes = await dbGetAll('incomes');
+
+      let yearlyIncomesCents = 0;
+      let yearlyPaidExpensesCents = 0;
+
+      // Pole pro 12 měsíců
+      const monthsData = [];
+
+      for (let m = 0; m < 12; m++) {
+        const pKey = `${statsYear}-${String(m + 1).padStart(2, '0')}`;
+        const monthInc = allIncomes.filter(i => i.period === pKey);
+        const monthExp = allExpenses.filter(e => e.period === pKey);
+
+        const incCents = monthInc.reduce((s, i) => s + i.amountCents, 0);
+        const paidCents = monthExp.filter(e => e.isPaid).reduce((s, e) => s + e.plannedAmountCents, 0);
+        const netCents = incCents - paidCents;
+
+        yearlyIncomesCents += incCents;
+        yearlyPaidExpensesCents += paidCents;
+
+        monthsData.push({
+          monthName: czechMonths[m],
+          periodKey: pKey,
+          incomesCents: incCents,
+          paidExpensesCents: paidCents,
+          netCents: netCents,
+          hasActivity: incCents > 0 || paidCents > 0
+        });
+      }
+
+      const yearlyNetCents = yearlyIncomesCents - yearlyPaidExpensesCents;
+
+      const container = document.getElementById('app-container');
+      container.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h2 style="font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
+            Finanční bilance roku
+          </h2>
+          <div class="period-selector">
+            <button id="btn-prev-year" class="period-btn">◀</button>
+            <span style="font-weight: bold; font-size: 0.85rem; padding: 0 0.4rem;">${statsYear}</span>
+            <button id="btn-next-year" class="period-btn">▶</button>
+          </div>
+        </div>
+
+        <div class="card" style="border-left: 4px solid ${yearlyNetCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
+          <div class="card-title">Celková bilance roku ${statsYear}</div>
+          <div class="metric-value" style="color: ${yearlyNetCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
+            ${yearlyNetCents >= 0 ? '+' : ''}${formatKc(yearlyNetCents)}
+          </div>
+          <div class="metric-sub">
+            ${yearlyNetCents >= 0 ? 'Skvělé! V tomto roce jsi celkově v zisku/přebytku.' : 'Pozor, v tomto roce výdaje převýšily příjmy.'}
+          </div>
+
+          <div class="grid-2" style="margin-top: 0.85rem;">
+            <div style="background-color: rgba(255, 255, 255, 0.03); padding: 0.6rem; border-radius: 8px;">
+              <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Roční příjmy celkem</div>
+              <div style="font-size: 1.05rem; font-weight: bold; color: var(--accent-green);">${formatKc(yearlyIncomesCents)}</div>
+            </div>
+            <div style="background-color: rgba(255, 255, 255, 0.03); padding: 0.6rem; border-radius: 8px;">
+              <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Roční výdaje celkem</div>
+              <div style="font-size: 1.05rem; font-weight: bold; color: var(--accent-red);">${formatKc(yearlyPaidExpensesCents)}</div>
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-export-csv" class="btn btn-secondary" style="width: 100%; margin-bottom: 1rem;">
+          📊 Stáhnout roční přehled do Excelu (CSV)
+        </button>
+
+        <div class="card">
+          <div class="card-title">Měsíc po měsíci v roce ${statsYear}</div>
+          <div>
+            ${monthsData.map(md => {
+              const netColor = md.netCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+              return `
+                <div class="month-bar-row">
+                  <div class="month-bar-header">
+                    <span>${md.monthName}</span>
+                    <span style="color: ${netColor};">
+                      ${md.hasActivity ? (md.netCents >= 0 ? '+' : '') + formatKc(md.netCents) : '<span style="color:var(--text-muted); font-size:0.75rem;">beze změn</span>'}
+                    </span>
+                  </div>
+                  <div class="month-bar-sub">
+                    <span>Příjmy: <strong style="color:var(--accent-green);">${formatKc(md.incomesCents)}</strong></span>
+                    <span>Zaplaceno: <strong>${formatKc(md.paidExpensesCents)}</strong></span>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+
+      document.getElementById('btn-prev-year').addEventListener('click', () => {
+        statsYear--;
+        renderStats();
+      });
+
+      document.getElementById('btn-next-year').addEventListener('click', () => {
+        statsYear++;
+        renderStats();
+      });
+
+      // Export do CSV pro Excel / Tabulky
+      document.getElementById('btn-export-csv').addEventListener('click', () => {
+        let csv = 'Měsíc;Období;Příjmy (Kč);Zaplacené výdaje (Kč);Čistý zisk/ztráta (Kč)\n';
+        monthsData.forEach(md => {
+          csv += `${md.monthName};${md.periodKey};${(md.incomesCents / 100).toFixed(2)};${(md.paidExpensesCents / 100).toFixed(2)};${(md.netCents / 100).toFixed(2)}\n`;
+        });
+        csv += `CELKEM ROK ${statsYear};;${(yearlyIncomesCents / 100).toFixed(2)};${(yearlyPaidExpensesCents / 100).toFixed(2)};${(yearlyNetCents / 100).toFixed(2)}\n`;
+
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `bilance-roku-${statsYear}.csv`;
+        a.click();
+      });
+    }
+
+    // --- ZÁLOŽKA 5: NASTAVENÍ ---
     async function renderSettings() {
       const curPeriod = formatPeriodKey(viewDate);
       const initialBalanceCents = await getConfig('initial_account_balance', toCents('71500'));
@@ -1550,7 +1689,7 @@
             📲 Nainstalovat Koloběžníkův rozpočet do telefonu
           </button>
           <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
-            Aplikace běží jako samostatná PWA s prioritním krytím cílů.
+            Aplikace běží jako samostatná PWA s prioritním krytím cílů a roční bilancí.
           </div>
         </div>
 
@@ -1587,8 +1726,8 @@
           <div class="card-title">Informace o aplikaci</div>
           <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
             <strong>Projekt:</strong> Koloběžníkův rozpočet<br>
-            <strong>Cíle:</strong> Plné přehazování priorit tlačítky ▲ / ▼ i přímým zadáním pozice<br>
-            <strong>Chytrá alokace:</strong> Peníze se okamžitě přelévají do cílů na horních pozicích
+            <strong>Statistiky:</strong> Kompletní měsíční a roční bilance + CSV export do Excelu<br>
+            <strong>Cíle:</strong> Prioritní přelévání peněz ze zůstatku účtu
           </div>
         </div>
       `;
@@ -1701,6 +1840,7 @@
       else if (activeTab === 'expenses') await renderExpenses();
       else if (activeTab === 'debts') await renderDebts();
       else if (activeTab === 'goals') await renderGoals();
+      else if (activeTab === 'stats') await renderStats();
       else if (activeTab === 'settings') await renderSettings();
     }
 
