@@ -152,6 +152,7 @@
       border-radius: 6px;
       cursor: pointer;
     }
+    .btn-icon:hover { color: var(--text-main); }
 
     .btn {
       border: none;
@@ -183,17 +184,47 @@
 
     .progress-bar-bg {
       background-color: var(--border);
-      height: 8px;
-      border-radius: 4px;
+      height: 10px;
+      border-radius: 5px;
       overflow: hidden;
       margin-top: 0.5rem;
     }
 
     .progress-bar-fill {
-      background-color: var(--accent-green);
       height: 100%;
-      border-radius: 4px;
+      border-radius: 5px;
       transition: width 0.3s ease;
+    }
+
+    .chart-box {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      margin-top: 0.75rem;
+    }
+    .chart-svg {
+      width: 110px;
+      height: 110px;
+      flex-shrink: 0;
+      transform: rotate(-90deg);
+    }
+    .chart-legend {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.75rem;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .legend-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
     }
 
     .nav-bar {
@@ -261,14 +292,12 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => {
-          console.warn('SW registrace:', err);
-        });
+        navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW registrace:', err));
       });
     }
 
     const DB_NAME = 'KolobeznikRozpocetDB';
-    const DB_VERSION = 2;
+    const DB_VERSION = 3;
 
     let isStoragePersistent = false;
     async function requestPersistence() {
@@ -315,6 +344,7 @@
           if (!db.objectStoreNames.contains('debts_receivable')) db.createObjectStore('debts_receivable', { keyPath: 'id', autoIncrement: true });
           if (!db.objectStoreNames.contains('savings_goals')) db.createObjectStore('savings_goals', { keyPath: 'id', autoIncrement: true });
           if (!db.objectStoreNames.contains('accounts')) db.createObjectStore('accounts', { keyPath: 'id', autoIncrement: true });
+          if (!db.objectStoreNames.contains('app_config')) db.createObjectStore('app_config', { keyPath: 'key' });
         };
       });
     }
@@ -369,12 +399,51 @@
       });
     }
 
+    async function getConfig(key, defaultValue = null) {
+      const db = await openDB();
+      return new Promise((res) => {
+        const tx = db.transaction('app_config', 'readonly');
+        const req = tx.objectStore('app_config').get(key);
+        req.onsuccess = () => res(req.result ? req.result.value : defaultValue);
+        req.onerror = () => res(defaultValue);
+      });
+    }
+
+    async function setConfig(key, value) {
+      const db = await openDB();
+      return new Promise((res, rej) => {
+        const tx = db.transaction('app_config', 'readwrite');
+        const req = tx.objectStore('app_config').put({ key, value });
+        req.onsuccess = () => res();
+        req.onerror = () => rej(req.error);
+      });
+    }
+
+    // --- VÝCHOZÍ CÍLE S TVÝMI AKTUÁLNÍMI PRIORITAMI ---
     async function seedInitialData(forceReload = false) {
+      const currentInitialBalance = await getConfig('initial_account_balance', null);
+      if (currentInitialBalance === null || forceReload) {
+        await setConfig('initial_account_balance', toCents('71500'));
+      }
+
+      const existingGoals = await dbGetAll('savings_goals');
+      if (existingGoals.length === 0 || forceReload) {
+        await clearStore('savings_goals');
+        // Přesné pořadí priorit dle tvého zadání
+        const prioritizedGoals = [
+          { name: 'Brikety na zimu', targetCents: toCents('11000'), priority: 1, paused: false },
+          { name: 'Právní výdaje', targetCents: toCents('20000'), priority: 2, paused: false },
+          { name: 'Železná finanční rezerva', targetCents: toCents('60000'), priority: 3, paused: false },
+          { name: 'Zubní náhrada', targetCents: toCents('30000'), priority: 4, paused: true },
+          { name: 'Koloběžka', targetCents: toCents('25000'), priority: 5, paused: true },
+          { name: 'Cestování do Itálie, Monaka a Nice', targetCents: toCents('16000'), priority: 6, paused: true }
+        ];
+        for (const g of prioritizedGoals) await dbAdd('savings_goals', g);
+      }
+
       const existingReceivables = await dbGetAll('debts_receivable');
-      
       if (existingReceivables.length === 0 || forceReload) {
         await clearStore('debts_receivable');
-
         const initialList = [
           { debtor: 'KOV', category: 'Půjčky', originalAmountCents: toCents('3400'), remainingAmountCents: toCents('3400'), history: [] },
           { debtor: 'KOV', category: 'Elektřina a drogerie', originalAmountCents: toCents('2750'), remainingAmountCents: toCents('2750'), history: [] },
@@ -388,16 +457,13 @@
           { debtor: 'MAGDA', category: 'Elektřina a drogerie', originalAmountCents: toCents('1500'), remainingAmountCents: toCents('1500'), history: [] },
           { debtor: 'MAGDA', category: 'Fólie na bazén', originalAmountCents: toCents('500'), remainingAmountCents: toCents('500'), history: [] }
         ];
-
-        for (const item of initialList) {
-          await dbAdd('debts_receivable', item);
-        }
+        for (const item of initialList) await dbAdd('debts_receivable', item);
       }
 
       const existingTemplates = await dbGetAll('recurring_templates');
       if (existingTemplates.length === 0) {
         const defaultExpenses = [
-          { name: 'Česká televize', amountCents: toCents('150'), category: 'Bydlení a média', dueDay: 15, active: true },
+          { name: 'Česká televize', amountCents: toCents('150'), category: 'Bydlení', dueDay: 15, active: true },
           { name: 'Vodafone – telefon', amountCents: toCents('266'), category: 'Komunikace', dueDay: 15, active: true },
           { name: 'T-Mobile – internet', amountCents: toCents('450'), category: 'Komunikace', dueDay: 20, active: true },
           { name: 'PVZP – pojištění', amountCents: toCents('400'), category: 'Pojištění', dueDay: 20, active: true },
@@ -405,24 +471,17 @@
           { name: 'Provident – splátka', amountCents: toCents('1500'), category: 'Dluhy a splátky', dueDay: 10, isLoanRepayment: true, active: true },
           { name: 'Penzijní příspěvek', amountCents: toCents('100'), category: 'Spoření', dueDay: 15, active: true },
           { name: 'ČEZ – záloha na elektřinu', amountCents: toCents('3000'), category: 'Energie', dueDay: 15, active: true },
-          { name: 'Terapie', amountCents: toCents('2000'), category: 'Zdraví a péče', dueDay: 1, active: true },
+          { name: 'Terapie', amountCents: toCents('2000'), category: 'Zdraví', dueDay: 1, active: true },
           { name: 'Investown', amountCents: toCents('500'), category: 'Investice', dueDay: 10, active: true },
-          { name: 'ChatGPT Go', amountCents: toCents('200'), category: 'Předplatné a software', dueDay: 1, active: true },
+          { name: 'ChatGPT Go', amountCents: toCents('200'), category: 'Služby & Předplatné', dueDay: 1, active: true },
           { name: 'SIPO', amountCents: toCents('77'), category: 'Bydlení', dueDay: 12, active: true },
           { name: 'Spotify', amountCents: toCents('185'), category: 'Zábava', dueDay: 5, active: true },
-          { name: 'Google AI Pro', amountCents: toCents('139,90'), category: 'Předplatné a software', dueDay: 8, active: true }
+          { name: 'Google AI Pro', amountCents: toCents('139,90'), category: 'Služby & Předplatné', dueDay: 8, active: true }
         ];
         for (const item of defaultExpenses) await dbAdd('recurring_templates', item);
 
         await dbAdd('debts_payable', { name: 'Provident', principalRemainingCents: toCents('77327,33'), monthlyPaymentCents: toCents('1500'), dueDay: 10 });
         await dbAdd('debts_payable', { name: 'AvaFin/Crediton', principalRemainingCents: toCents('19524'), monthlyPaymentCents: toCents('1100'), dueDay: 10 });
-
-        await dbAdd('savings_goals', { name: 'Celková finanční rezerva a velké výdaje', targetCents: toCents('180000'), allocatedCents: 0 });
-        await dbAdd('savings_goals', { name: 'Zubní náhrada', targetCents: toCents('30000'), allocatedCents: 0 });
-        await dbAdd('savings_goals', { name: 'Cestování do Itálie, Monaka a Nice', targetCents: toCents('16000'), allocatedCents: 0 });
-        await dbAdd('savings_goals', { name: 'Nová koloběžka', targetCents: toCents('25000'), allocatedCents: 0 });
-        await dbAdd('savings_goals', { name: 'Brikety na zimu', targetCents: toCents('20000'), allocatedCents: 0 });
-        await dbAdd('savings_goals', { name: 'Právní výdaje', targetCents: toCents('0'), allocatedCents: 0 });
       }
     }
 
@@ -476,27 +535,81 @@
       return created;
     }
 
-    // --- VÝPOČET KUMULATIVNÍHO POČÁTEČNÍHO ZŮSTATKU Z MINULÝCH MĚSÍCŮ ---
-    async function getStartingBalanceForPeriod(periodKey) {
+    async function getCurrentAccountBalance(periodKey) {
+      const baseInitialBalance = await getConfig('initial_account_balance', toCents('71500'));
       const allExpenses = await dbGetAll('monthly_expenses');
       const allIncomes = await dbGetAll('incomes');
 
-      // Všechny příjmy a výdaje přísně PŘED aktuálně vybraným měsícem
-      let pastIncomesCents = 0;
+      let totalIncomesCents = 0;
       for (const inc of allIncomes) {
-        if (inc.period < periodKey) {
-          pastIncomesCents += inc.amountCents;
-        }
+        if (inc.period <= periodKey) totalIncomesCents += inc.amountCents;
       }
 
-      let pastPaidExpensesCents = 0;
+      let totalPaidExpensesCents = 0;
       for (const exp of allExpenses) {
-        if (exp.period < periodKey && exp.isPaid) {
-          pastPaidExpensesCents += exp.plannedAmountCents;
-        }
+        if (exp.period <= periodKey && exp.isPaid) totalPaidExpensesCents += exp.plannedAmountCents;
       }
 
-      return pastIncomesCents - pastPaidExpensesCents;
+      return baseInitialBalance + totalIncomesCents - totalPaidExpensesCents;
+    }
+
+    // Inteligentní alokace: respektuje prioritu a stav "odloženo"
+    async function getSmartGoalsAllocation(availableMoneyCents) {
+      const goals = await dbGetAll('savings_goals');
+      // Řazení podle priority
+      goals.sort((a, b) => (a.priority || 99) - (b.priority || 99));
+
+      let remainingMoney = Math.max(0, availableMoneyCents);
+      const allocatedGoals = [];
+
+      for (const g of goals) {
+        const target = g.targetCents || 0;
+        let funded = 0;
+
+        // Pokud není odloženo, alokujeme dostupné peníze
+        if (!g.paused && target > 0) {
+          funded = Math.min(remainingMoney, target);
+          remainingMoney -= funded;
+        }
+
+        const missing = Math.max(0, target - funded);
+        const percent = target > 0 ? Math.round((funded / target) * 100) : 100;
+
+        allocatedGoals.push({
+          ...g,
+          allocatedCents: funded,
+          missingCents: missing,
+          percent
+        });
+      }
+
+      return {
+        goals: allocatedGoals,
+        unallocatedMoneyCents: remainingMoney
+      };
+    }
+
+    function renderPieChartSVG(slices) {
+      const total = slices.reduce((sum, s) => sum + s.value, 0);
+      if (total <= 0) {
+        return `<svg viewBox="0 0 36 36" class="chart-svg"><circle cx="18" cy="18" r="15.9" fill="none" stroke="#334155" stroke-width="3.8"/></svg>`;
+      }
+
+      let cumulativePercent = 0;
+      const strokeWidth = 5;
+      const radius = 15.91549430918954;
+
+      const paths = slices.map(slice => {
+        const percent = (slice.value / total) * 100;
+        if (percent <= 0) return '';
+        const dashArray = `${percent} ${100 - percent}`;
+        const dashOffset = 100 - cumulativePercent;
+        cumulativePercent += percent;
+
+        return `<circle cx="18" cy="18" r="${radius}" fill="none" stroke="${slice.color}" stroke-width="${strokeWidth}" stroke-dasharray="${dashArray}" stroke-dashoffset="${dashOffset}"/>`;
+      }).join('');
+
+      return `<svg viewBox="0 0 36 36" class="chart-svg">${paths}</svg>`;
     }
 
     let activeTab = 'dashboard';
@@ -518,7 +631,7 @@
       render();
     }
 
-    // --- ZÁLOŽKA 0: DASHBOARD S PROPOJENÝM POČÁTEČNÍM ZŮSTATKEM ---
+    // --- ZÁLOŽKA 0: DASHBOARD ---
     async function renderDashboard() {
       const curPeriod = formatPeriodKey(viewDate);
       const allExpenses = await dbGetAll('monthly_expenses');
@@ -538,9 +651,8 @@
       const monthIncomes = allIncomes.filter(i => i.period === curPeriod);
       const totalIncomesCents = monthIncomes.reduce((sum, i) => sum + i.amountCents, 0);
 
-      // Počáteční stav z minulých měsíců + tok tohoto měsíce
-      const startBalanceCents = await getStartingBalanceForPeriod(curPeriod);
-      const currentEndBalanceCents = startBalanceCents + totalIncomesCents - paidExpensesCents;
+      const currentAccountBalanceCents = await getCurrentAccountBalance(curPeriod);
+      const { goals: smartGoals, unallocatedMoneyCents } = await getSmartGoalsAllocation(currentAccountBalanceCents);
 
       const debts = await dbGetAll('debts_payable');
       const totalDebtCents = debts.reduce((sum, d) => sum + d.principalRemainingCents, 0);
@@ -548,30 +660,40 @@
       const receivables = await dbGetAll('debts_receivable');
       const totalReceivableCents = receivables.reduce((sum, r) => sum + r.remainingAmountCents, 0);
 
-      const goals = await dbGetAll('savings_goals');
-      const totalAllocatedGoalsCents = goals.reduce((sum, g) => sum + (g.allocatedCents || 0), 0);
+      const categoryMap = {};
+      monthExpenses.forEach(e => {
+        const cat = e.category || 'Ostatní';
+        categoryMap[cat] = (categoryMap[cat] || 0) + e.plannedAmountCents;
+      });
 
-      const netWorthCents = currentEndBalanceCents + totalReceivableCents + totalAllocatedGoalsCents - totalDebtCents;
+      const chartColors = ['#38bdf8', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#ec4899', '#14b8a6', '#64748b'];
+      const expenseSlices = Object.keys(categoryMap).map((cat, idx) => ({
+        label: cat,
+        value: categoryMap[cat],
+        color: chartColors[idx % chartColors.length]
+      }));
+
+      const debtSlices = debts.map((d, idx) => ({
+        label: d.name,
+        value: d.principalRemainingCents,
+        color: idx === 0 ? '#ef4444' : '#f59e0b'
+      }));
 
       const container = document.getElementById('app-container');
       container.innerHTML = `
-        <div class="card" style="border-left: 4px solid var(--accent);">
+        <div class="card" style="border-left: 4px solid var(--accent-green);">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
-              <div class="card-title">Peníze na účtu (${czechMonths[viewDate.getMonth()]} ${viewDate.getFullYear()})</div>
-              <div class="metric-value" style="color: ${currentEndBalanceCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
-                ${formatKc(currentEndBalanceCents)}
-              </div>
-              <div class="metric-sub">
-                Počátek z minula: <strong>${formatKc(startBalanceCents)}</strong> | Tento měsíc: <strong>${totalIncomesCents - paidExpensesCents >= 0 ? '+' : ''}${formatKc(totalIncomesCents - paidExpensesCents)}</strong>
-              </div>
+              <div class="card-title">Peníze na účtu k dispozici</div>
+              <div class="metric-value" style="color: var(--accent-green);">${formatKc(currentAccountBalanceCents)}</div>
+              <div class="metric-sub">Kryje tvé priority: brikety, právo a část rezervy</div>
             </div>
             <button id="dash-btn-add-income" class="btn btn-success" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">+ Příjem</button>
           </div>
 
           <div class="grid-3" style="margin-top: 0.85rem;">
             <div style="background-color: rgba(255, 255, 255, 0.03); padding: 0.5rem; border-radius: 8px;">
-              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Příjmy</div>
+              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Příjmy měsíce</div>
               <div style="font-size: 0.95rem; font-weight: bold; color: var(--accent-green);">${formatKc(totalIncomesCents)}</div>
             </div>
             <div style="background-color: rgba(255, 255, 255, 0.03); padding: 0.5rem; border-radius: 8px;">
@@ -579,9 +701,47 @@
               <div style="font-size: 0.95rem; font-weight: bold; color: var(--text-main);">${formatKc(paidExpensesCents)}</div>
             </div>
             <div style="background-color: rgba(255, 255, 255, 0.03); padding: 0.5rem; border-radius: 8px;">
-              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Zbývá</div>
+              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Zbývá doplatit</div>
               <div style="font-size: 0.95rem; font-weight: bold; color: var(--accent-red);">${formatKc(unpaidExpensesCents)}</div>
             </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Rozpad měsíčních výdajů podle kategorií</div>
+          <div class="chart-box">
+            ${renderPieChartSVG(expenseSlices)}
+            <div class="chart-legend">
+              ${expenseSlices.map(s => `
+                <div class="legend-item">
+                  <div class="legend-color" style="background-color: ${s.color};"></div>
+                  <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${s.label}</div>
+                  <strong>${formatKc(s.value)}</strong>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="cursor: pointer;" id="dash-card-goals">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <div class="card-title" style="margin-bottom:0;">Aktuální krytí cílů dle priorit</div>
+            <span style="font-size: 0.75rem; color: var(--accent);">Změnit priority ➔</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.45rem;">
+            ${smartGoals.map(g => `
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
+                  <span>${g.priority}. ${g.name}${g.paused ? '<em style="color:var(--text-muted); font-size:0.7rem;">(odloženo)</em>' : ''}</span>
+                  <strong style="color: ${g.allocatedCents === g.targetCents ? 'var(--accent-green)' : (g.allocatedCents > 0 ? 'var(--accent-amber)' : 'var(--text-muted)')};">
+                    ${formatKc(g.allocatedCents)} z ${formatKc(g.targetCents)} (${g.percent} %)
+                  </strong>
+                </div>
+                <div class="progress-bar-bg" style="height: 6px; margin-top: 0.2rem;">
+                  <div class="progress-bar-fill" style="width: ${g.percent}\%; background-color:${g.allocatedCents === g.targetCents ? 'var(--accent-green)' : 'var(--accent-amber)'};"></div>
+                </div>
+              </div>
+            `).join('')}
           </div>
         </div>
 
@@ -599,23 +759,20 @@
           </div>
         </div>
 
-        <div class="card" style="cursor: pointer;" id="dash-card-goals">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-              <div class="card-title">Úspory a finanční cíle</div>
-              <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalAllocatedGoalsCents)}</div>
-              <div class="metric-sub">${goals.length} aktivních cílů (kliknutím upravíš)</div>
+        <div class="card">
+          <div class="card-title">Rozložení mých dluhů</div>
+          <div class="chart-box">
+            ${renderPieChartSVG(debtSlices)}
+            <div class="chart-legend">
+              ${debtSlices.map(s => `
+                <div class="legend-item">
+                  <div class="legend-color" style="background-color: ${s.color};"></div>
+                  <div style="flex: 1;">${s.label}</div>
+                  <strong>${formatKc(s.value)}</strong>
+                </div>
+              `).join('')}
             </div>
-            <button class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">Otevřít</button>
           </div>
-        </div>
-
-        <div class="card" style="border: 1px solid rgba(255, 255, 255, 0.1);">
-          <div class="card-title">Celková finanční pozice</div>
-          <div class="metric-value" style="color: ${netWorthCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
-            ${formatKc(netWorthCents)}
-          </div>
-          <div class="metric-sub">Peníze na účtu + pohledávky + cíle − evidované dluhy</div>
         </div>
       `;
 
@@ -745,8 +902,9 @@
         if (!name || !name.trim()) return;
         const amountStr = prompt(`Částka pro "${name}" v Kč:`);
         if (!amountStr || !amountStr.trim()) return;
+        const category = prompt('Kategorie (Bydlení, Energie, Komunikace, Služby, Zábava):', 'Bydlení');
         const dueDayStr = prompt('Den splatnosti v měsíci (1 až 31):', '15');
-        const isRecurring = confirm(`Má se "${name}" opakovat každý měsíc automaticky?\n\n[OK] = Ano, trvalá měsíční platba\n[Zrušit] = Ne, pouze jednorázový výdaj`);
+        const isRecurring = confirm(`Má se "${name}" opakovat každý měsíc automaticky?\n\n[OK] = Ano, trvalá platba\n[Zrušit] = Ne, pouze jednorázový výdaj`);
 
         const amountCents = toCents(amountStr);
         const dueDay = parseInt(dueDayStr, 10) || 15;
@@ -756,7 +914,7 @@
           templateId = await dbAdd('recurring_templates', {
             name: name.trim(),
             amountCents,
-            category: 'Pravidelné',
+            category: category ? category.trim() : 'Ostatní',
             dueDay,
             active: true
           });
@@ -765,7 +923,7 @@
         await dbAdd('monthly_expenses', {
           templateId,
           name: name.trim(),
-          category: isRecurring ? 'Pravidelné' : 'Jednorázové',
+          category: category ? category.trim() : 'Ostatní',
           plannedAmountCents: amountCents,
           paidAmountCents: 0,
           dueDay,
@@ -874,7 +1032,7 @@
       document.getElementById('btn-add-new-debtor').addEventListener('click', async () => {
         const name = prompt('Jméno nebo přezdívka nové osoby:');
         if (!name || !name.trim()) return;
-        const category = prompt('Za co dluží (např. Půjčky, Elektřina, jiné):', 'Půjčky');
+        const category = prompt('Za co dluží (Půjčky, Elektřina, jiné):', 'Půjčky');
         const amount = prompt('Částka v Kč:');
         if (amount && amount.trim()) {
           await dbAdd('debts_receivable', {
@@ -919,7 +1077,7 @@
                 <span style="font-weight: 700; color: ${item.remainingAmountCents > 0 ? 'var(--text-main)' : 'var(--text-muted)'}; font-size: 0.95rem;">
                   ${formatKc(item.remainingAmountCents)}
                 </span>
-                <button class="btn-icon btn-edit-category" data-id="${item.id}" title="Upravit částku ručně">✏️</button>
+                <button class="btn-icon btn-edit-category" data-id="${item.id}" title="Upravit">✏️</button>
               </div>
             </div>
           `;
@@ -950,7 +1108,7 @@
         `;
 
         card.querySelector('.btn-add-debt').addEventListener('click', async () => {
-          const catPrompt = `Vyber za co ${personName} dluží / půjčuje si:\n\n1 = Půjčky\n2 = Elektřina a drogerie\n3 = Fólie na bazén\n4 = Jiné (zadat vlastní název)`;
+          const catPrompt = `Vyber za co ${personName} dluží:\n\n1 = Půjčky\n2 = Elektřina a drogerie\n3 = Fólie na bazén\n4 = Jiné (zadat)`;
           const choice = prompt(catPrompt, '1');
           if (!choice) return;
 
@@ -958,11 +1116,11 @@
           if (choice === '2') chosenCategory = 'Elektřina a drogerie';
           else if (choice === '3') chosenCategory = 'Fólie na bazén';
           else if (choice === '4') {
-            const custom = prompt('Zadej vlastní důvod / položku:');
+            const custom = prompt('Zadej vlastní důvod:');
             if (custom && custom.trim()) chosenCategory = custom.trim();
           }
 
-          const amountStr = prompt(`Kolik Kč si ${personName} půjčuje / vzniká dluh za "${chosenCategory}"?`);
+          const amountStr = prompt(`Kolik Kč vzniká dluh za "${chosenCategory}"?`);
           if (!amountStr || !amountStr.trim()) return;
           const addCents = toCents(amountStr);
 
@@ -1009,10 +1167,7 @@
           if (!choice) return;
           const idx = parseInt(choice, 10) - 1;
           const targetItem = personItems[idx];
-          if (!targetItem) {
-            alert('Neplatná volba položky.');
-            return;
-          }
+          if (!targetItem) return alert('Neplatná volba.');
 
           const defaultAmount = (targetItem.remainingAmountCents / 100).toFixed(0);
           const valStr = prompt(`Kolik Kč ${personName} zaplatil/a na "${targetItem.category}"?`, defaultAmount);
@@ -1040,9 +1195,9 @@
             const target = receivables.find(r => r.id === id);
             if (!target) return;
 
-            const action = prompt(`Položka: ${target.debtor} – ${target.category}\nAktuálně zbývá: ${(target.remainingAmountCents / 100).toFixed(2)} Kč\n\n1 = Zadat přesnou novou částku zůstatku\n2 = Smazat tuto položku`, '1');
+            const action = prompt(`Položka: ${target.debtor} – ${target.category}\nZbývá: ${(target.remainingAmountCents / 100).toFixed(2)} Kč\n\n1 = Upravit částku\n2 = Smazat položku`, '1');
             if (action === '1') {
-              const val = prompt('Nový skutečný zůstatek v Kč:', (target.remainingAmountCents / 100).toFixed(2));
+              const val = prompt('Nový zůstatek v Kč:', (target.remainingAmountCents / 100).toFixed(2));
               if (val !== null && val.trim() !== '') {
                 target.remainingAmountCents = toCents(val);
                 await dbPut('debts_receivable', target);
@@ -1130,22 +1285,61 @@
       });
     }
 
-    // --- ZÁLOŽKA 3: PLNOHODNOTNĚ EDITOVATELNÉ CÍLE ---
+    // --- ZÁLOŽKA 3: CHYTRÉ CÍLE S PŘEPÍNÁNÍM PRIORIT (▲/▼) A ODLOŽENÍM ---
     async function renderGoals() {
-      const goals = await dbGetAll('savings_goals');
-      const totalAllocatedCents = goals.reduce((sum, g) => sum + (g.allocatedCents || 0), 0);
+      const curPeriod = formatPeriodKey(viewDate);
+      const currentAccountBalanceCents = await getCurrentAccountBalance(curPeriod);
+      const { goals: smartGoals, unallocatedMoneyCents } = await getSmartGoalsAllocation(currentAccountBalanceCents);
+
+      const totalTargetCents = smartGoals.reduce((sum, g) => sum + (g.targetCents || 0), 0);
+      const totalCoveredCents = smartGoals.reduce((sum, g) => sum + g.allocatedCents, 0);
+      const totalMissingCents = Math.max(0, totalTargetCents - totalCoveredCents);
+
+      const goalChartColors = ['#22c55e', '#38bdf8', '#f59e0b', '#a855f7', '#14b8a6', '#ec4899'];
+      const goalSlices = smartGoals.filter(g => g.allocatedCents > 0).map((g, idx) => ({
+        label: g.name,
+        value: g.allocatedCents,
+        color: goalChartColors[idx % goalChartColors.length]
+      }));
+
+      if (totalMissingCents > 0) {
+        goalSlices.push({
+          label: 'Zbývá našetřit',
+          value: totalMissingCents,
+          color: '#334155'
+        });
+      }
 
       const container = document.getElementById('app-container');
       container.innerHTML = `
-        <div class="card">
-          <div class="card-title">Celkem vyčleněno na cíle</div>
-          <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalAllocatedCents)}</div>
-          <div class="metric-sub">Peníze určené na konkrétní rezervy a plány</div>
+        <div class="card" style="border-left: 4px solid var(--accent);">
+          <div class="card-title">Stav spoření z peněz na účtu</div>
+          <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalCoveredCents)}</div>
+          <div class="metric-sub">
+            Zůstatek <strong>${formatKc(currentAccountBalanceCents)}</strong> kryje <strong>${formatKc(totalCoveredCents)}</strong> z celkových plánů <strong>${formatKc(totalTargetCents)}</strong>.
+            ${unallocatedMoneyCents > 0 ? `<div style="color: var(--accent); margin-top: 0.2rem;">Volná rezerva navíc nad aktivními cíli: +${formatKc(unallocatedMoneyCents)}</div>` : ''}
+          </div>
         </div>
 
-        <div style="margin: 1rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
+        <div class="card">
+          <div class="card-title">Graf pokrytí finančních cílů</div>
+          <div class="chart-box">
+            ${renderPieChartSVG(goalSlices)}
+            <div class="chart-legend">
+              ${goalSlices.map(s => `
+                <div class="legend-item">
+                  <div class="legend-color" style="background-color: ${s.color};"></div>
+                  <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${s.label}</div>
+                  <strong>${formatKc(s.value)}</strong>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div style="margin: 1.25rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
           <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
-            Plnění finančních cílů
+            Seznam cílů (šipkami měníš prioritu)
           </h2>
           <button id="btn-add-new-goal" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">+ Nový cíl</button>
         </div>
@@ -1153,97 +1347,134 @@
         <div id="goals-list" class="item-list"></div>
       `;
 
-      // Přidání nového cíle
       document.getElementById('btn-add-new-goal').addEventListener('click', async () => {
-        const name = prompt('Název nového cíle (např. Servis auta, Dovolená):');
+        const name = prompt('Název nového cíle:');
         if (!name || !name.trim()) return;
-        const targetStr = prompt(`Cílová částka pro "${name}" v Kč (nebo 0 pro bez limitu):`, '10000');
-        const startStr = prompt('Počáteční již naspořená částka v Kč:', '0');
+        const targetStr = prompt(`Cílová částka pro "${name}" v Kč:`, '10000');
 
         await dbAdd('savings_goals', {
           name: name.trim(),
           targetCents: toCents(targetStr),
-          allocatedCents: toCents(startStr)
+          priority: smartGoals.length + 1,
+          paused: false
         });
         await render();
       });
 
       const listContainer = document.getElementById('goals-list');
-      goals.forEach(goal => {
+      smartGoals.forEach((goal, idx) => {
         const card = document.createElement('div');
         card.className = 'card';
         card.style.marginBottom = '0.75rem';
 
-        const percent = goal.targetCents > 0 ? Math.min(100, Math.round(((goal.allocatedCents || 0) / goal.targetCents) * 100)) : 0;
+        const isFullyFunded = goal.missingCents === 0;
 
         card.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-              <div style="font-size: 1rem; font-weight: 700;">${goal.name}</div>
-              <div class="expense-meta">Cíl: ${goal.targetCents > 0 ? formatKc(goal.targetCents) : 'Bez limitu'}</div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <div style="display: flex; flex-direction: column; gap: 0.15rem;">
+                <button class="btn-icon btn-move-up" data-id="${goal.id}" title="Zvýšit prioritu" ${idx === 0 ? 'disabled style="opacity:0.2;"' : ''}>▲</button>
+                <button class="btn-icon btn-move-down" data-id="${goal.id}" title="Snížit prioritu" ${idx === smartGoals.length - 1 ? 'disabled style="opacity:0.2;"' : ''}>▼</button>
+              </div>
+              <div>
+                <div style="font-size: 1rem; font-weight: 700;">
+                  ${goal.priority}. ${goal.name}
+                  ${goal.paused ? '<span style="font-size:0.7rem; color:var(--accent-amber); margin-left:0.3rem; border:1px solid var(--accent-amber); padding:0.1rem 0.35rem; border-radius:4px;">Odloženo (počká)</span>' : ''}
+                </div>
+                <div class="expense-meta">Cíl: <strong>${formatKc(goal.targetCents)}</strong></div>
+              </div>
             </div>
+
             <div style="text-align: right;">
-              <div style="font-size: 1.1rem; font-weight: 800; color: var(--accent-green);">${formatKc(goal.allocatedCents || 0)}</div>
-              <div class="expense-meta">${percent} % splněno</div>
+              <div style="font-size: 1.1rem; font-weight: 800; color: ${goal.paused ? 'var(--text-muted)' : (isFullyFunded ? 'var(--accent-green)' : (goal.allocatedCents > 0 ? 'var(--accent-amber)' : 'var(--text-muted)'))};">
+                ${formatKc(goal.allocatedCents)}
+              </div>
+              <div class="expense-meta">${goal.paused ? '0 % (odloženo)' : `${goal.percent} % pokryto`}</div>
             </div>
           </div>
 
           <div class="progress-bar-bg">
-            <div class="progress-bar-fill" style="width: ${percent}%;"></div>
+            <div class="progress-bar-fill" style="width: ${goal.percent}%; background-color: ${goal.paused ? 'var(--border)' : (isFullyFunded ? 'var(--accent-green)' : 'var(--accent-amber)')};"></div>
           </div>
 
-          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-            <button class="btn btn-secondary btn-add-funds" style="flex: 1; font-size: 0.75rem;">+ Přidat peníze</button>
-            <button class="btn btn-secondary btn-edit-goal" style="flex: 1; font-size: 0.75rem;">✏️ Upravit cíl</button>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.6rem; font-size: 0.8rem;">
+            <span style="color: ${goal.paused ? 'var(--text-muted)' : (isFullyFunded ? 'var(--accent-green)' : 'var(--accent-amber)')}; font-weight: 600;">
+              ${goal.paused ? 'Peníze se přednostně použijí na jiné cíle' : (isFullyFunded ? '✓ Kompletně pokryto penězi z účtu' : `Zbývá našetřit: ${formatKc(goal.missingCents)}`)}
+            </span>
+            <div style="display: flex; gap: 0.4rem;">
+              <button class="btn btn-secondary btn-toggle-pause" data-id="${goal.id}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                ${goal.paused ? '▶ Aktivovat' : '⏸ Odložit'}
+              </button>
+              <button class="btn btn-secondary btn-edit-goal" data-id="${goal.id}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                ✏️ Upravit
+              </button>
+            </div>
           </div>
         `;
 
-        // Přidání peněz k cíli
-        card.querySelector('.btn-add-funds').addEventListener('click', async () => {
-          const val = prompt(`Kolik Kč chceš přidat na "${goal.name}"?`);
-          if (val && val.trim()) {
-            goal.allocatedCents = (goal.allocatedCents || 0) + toCents(val);
+        // Posun priority nahoru (▲)
+        const btnUp = card.querySelector('.btn-move-up');
+        if (btnUp && idx > 0) {
+          btnUp.addEventListener('click', async () => {
+            const prevGoal = smartGoals[idx - 1];
+            const tempPrio = goal.priority;
+            goal.priority = prevGoal.priority;
+            prevGoal.priority = tempPrio;
             await dbPut('savings_goals', goal);
+            await dbPut('savings_goals', prevGoal);
             await render();
-          }
+          });
+        }
+
+        // Posun priority dolů (▼)
+        const btnDown = card.querySelector('.btn-move-down');
+        if (btnDown && idx < smartGoals.length - 1) {
+          btnDown.addEventListener('click', async () => {
+            const nextGoal = smartGoals[idx + 1];
+            const tempPrio = goal.priority;
+            goal.priority = nextGoal.priority;
+            nextGoal.priority = tempPrio;
+            await dbPut('savings_goals', goal);
+            await dbPut('savings_goals', nextGoal);
+            await render();
+          });
+        }
+
+        // Přepínač "Odložit (počká)"
+        card.querySelector('.btn-toggle-pause').addEventListener('click', async () => {
+          goal.paused = !goal.paused;
+          await dbPut('savings_goals', goal);
+          await render();
         });
 
-        // Plná editace cíle (částka, název, smazání, oprava aktuálního stavu)
+        // Editace cíle
         card.querySelector('.btn-edit-goal').addEventListener('click', async () => {
           const action = prompt(
-            `Úprava cíle: ${goal.name}\n` +
-            `Aktuálně naspořeno: ${(goal.allocatedCents / 100).toFixed(0)} Kč\n` +
-            `Cílová částka: ${(goal.targetCents / 100).toFixed(0)} Kč\n\n` +
+            `Úprava: ${goal.name}\n` +
+            `Cílová částka: ${(goal.targetCents / 100).toFixed(0)} Kč\n` +
+            `Pořadí priority: ${goal.priority}\n\n` +
             `1 = Změnit cílovou částku\n` +
-            `2 = Změnit aktuálně naspořenou částku\n` +
-            `3 = Přejmenovat cíl\n` +
-            `4 = Smazat tento cíl`,
+            `2 = Přejmenovat cíl\n` +
+            `3 = Smazat tento cíl`,
             '1'
           );
 
           if (action === '1') {
-            const val = prompt(`Zadej novou cílovou částku pro "${goal.name}" v Kč:`, (goal.targetCents / 100).toFixed(0));
+            const val = prompt(`Nová cílová částka pro "${goal.name}" v Kč:`, (goal.targetCents / 100).toFixed(0));
             if (val !== null && val.trim() !== '') {
               goal.targetCents = toCents(val);
               await dbPut('savings_goals', goal);
               await render();
             }
           } else if (action === '2') {
-            const val = prompt(`Zadej skutečnou aktuálně naspořenou částku pro "${goal.name}" v Kč:`, (goal.allocatedCents / 100).toFixed(0));
-            if (val !== null && val.trim() !== '') {
-              goal.allocatedCents = toCents(val);
-              await dbPut('savings_goals', goal);
-              await render();
-            }
-          } else if (action === '3') {
-            const val = prompt('Nový název cíle:', goal.name);
+            const val = prompt('Nový název:', goal.name);
             if (val && val.trim()) {
               goal.name = val.trim();
               await dbPut('savings_goals', goal);
               await render();
             }
-          } else if (action === '4') {
-            if (confirm(`Opravdu smazat finanční cíl "${goal.name}"?`)) {
+          } else if (action === '3') {
+            if (confirm(`Opravdu smazat cíl "${goal.name}"?`)) {
               await dbDelete('savings_goals', goal.id);
               await render();
             }
@@ -1256,6 +1487,9 @@
 
     // --- ZÁLOŽKA 4: NASTAVENÍ ---
     async function renderSettings() {
+      const curPeriod = formatPeriodKey(viewDate);
+      const initialBalanceCents = await getConfig('initial_account_balance', toCents('71500'));
+
       const container = document.getElementById('app-container');
       
       const storageStatusHtml = isStoragePersistent
@@ -1264,12 +1498,23 @@
 
       container.innerHTML = `
         <div class="card">
+          <div class="card-title">Výchozí stav peněz na účtu</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0;">
+            <div>
+              <div style="font-size: 1.25rem; font-weight: bold; color: var(--accent);">${formatKc(initialBalanceCents)}</div>
+              <div class="metric-sub">Základní zůstatek pro výpočet krytí cílů</div>
+            </div>
+            <button id="btn-edit-initial-balance" class="btn btn-secondary">Změnit zůstatek</button>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="card-title">Instalace do telefonu</div>
           <button id="btn-install-pwa" class="btn btn-primary" style="width: 100%; display: ${deferredPrompt ? 'block' : 'none'}; margin-bottom: 0.75rem;">
             📲 Nainstalovat Koloběžníkův rozpočet do telefonu
           </button>
           <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
-            Aplikace běží jako samostatná PWA s plynulým přenosem peněz mezi měsíci.
+            Aplikace běží jako samostatná PWA s prioritním krytím cílů.
           </div>
         </div>
 
@@ -1277,7 +1522,7 @@
           <div class="card-title">Stav ochrany dat</div>
           <div style="font-size: 0.85rem; margin-bottom: 0.5rem;">${storageStatusHtml}</div>
           <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
-            Veškeré změny se okamžitě a trvale ukládají do lokální databáze (IndexedDB). Pro maximální jistotu proti smazání telefonu si stáhni zálohu nebo zkopíruj textový kód.
+            Veškeré změny se okamžitě a trvale ukládají do lokální databáze (IndexedDB).
           </div>
         </div>
 
@@ -1298,7 +1543,7 @@
           </label>
 
           <button id="btn-force-reload-data" class="btn btn-danger" style="width: 100%; margin-top: 0.5rem;">
-            🔄 Reset do výchozího stavu k 15. 10. 2026
+            🔄 Nastavit priority: Brikety, Právo, Rezerva (71 500 Kč)
           </button>
         </div>
 
@@ -1306,11 +1551,20 @@
           <div class="card-title">Informace o aplikaci</div>
           <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
             <strong>Projekt:</strong> Koloběžníkův rozpočet<br>
-            <strong>Typ:</strong> Offline PWA s plynulou návazností měsíců<br>
-            <strong>Propojení:</strong> Peníze na účtu z minulého měsíce se automaticky stávají počátečním zůstatkem nového měsíce
+            <strong>Priority:</strong> Posun šipkami (▲ / ▼) a možnost odložit cíl (počká)<br>
+            <strong>Krytí:</strong> Automatické přelévání peněz z disponibilního zůstatku na účtu
           </div>
         </div>
       `;
+
+      document.getElementById('btn-edit-initial-balance').addEventListener('click', async () => {
+        const currentKc = (initialBalanceCents / 100).toFixed(0);
+        const val = prompt('Zadej aktuální stav peněz na účtu v Kč:', currentKc);
+        if (val !== null && val.trim() !== '') {
+          await setConfig('initial_account_balance', toCents(val));
+          await render();
+        }
+      });
 
       const installBtn = document.getElementById('btn-install-pwa');
       if (installBtn) {
@@ -1347,10 +1601,10 @@
       });
 
       document.getElementById('btn-force-reload-data').addEventListener('click', async () => {
-        if (confirm('Nastavit znovu výchozí stav pohledávek k 15. 10. 2026?')) {
+        if (confirm('Nastavit znovu výchozí priority (Brikety, Právo, Rezerva) a 71 500 Kč na účtu?')) {
           await seedInitialData(true);
-          alert('Pohledávky byly nastaveny.');
-          setTab('debts');
+          alert('Priority byly nastaveny.');
+          setTab('goals');
         }
       });
 
