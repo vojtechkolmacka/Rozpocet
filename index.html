@@ -267,7 +267,6 @@
       margin-top: 0.3rem;
     }
 
-    /* Plynulá dolní navigační lišta */
     .nav-bar {
       position: fixed;
       bottom: 0;
@@ -344,7 +343,7 @@
     }
 
     const DB_NAME = 'KolobeznikRozpocetDB';
-    const DB_VERSION = 4; // Zvýšeno pro nové úložiště investic a webových výdělků
+    const DB_VERSION = 4;
 
     let isStoragePersistent = false;
     async function requestPersistence() {
@@ -468,21 +467,17 @@
       });
     }
 
-    // --- VÝCHOZÍ DATA A NASTAVENÍ K 16. 10. 2026 ---
     async function seedInitialData(forceReload = false) {
-      // 1. Nastavení výchozího stavu na 71 700 Kč
       const currentInitialBalance = await getConfig('initial_account_balance', null);
       if (currentInitialBalance === null || forceReload) {
         await setConfig('initial_account_balance', toCents('71700'));
       }
 
-      // 2. Ostrý start bilance je nastaven na Listopad 2026
       const startTrackingMonth = await getConfig('balance_start_period', null);
       if (startTrackingMonth === null || forceReload) {
         await setConfig('balance_start_period', '2026-11');
       }
 
-      // 3. Výchozí investice (např. Investown)
       const existingInvestments = await dbGetAll('investments');
       if (existingInvestments.length === 0 || forceReload) {
         await clearStore('investments');
@@ -494,13 +489,11 @@
         });
       }
 
-      // 4. Výchozí webové výdělky
       const existingWeb = await dbGetAll('web_earnings');
       if (existingWeb.length === 0 || forceReload) {
         await clearStore('web_earnings');
       }
 
-      // 5. Cíle s prioritami
       const existingGoals = await dbGetAll('savings_goals');
       if (existingGoals.length === 0 || forceReload) {
         await clearStore('savings_goals');
@@ -515,7 +508,6 @@
         for (const g of prioritizedGoals) await dbAdd('savings_goals', g);
       }
 
-      // 6. Pohledávky (KOV, JIŘÍ, MAGDA)
       const existingReceivables = await dbGetAll('debts_receivable');
       if (existingReceivables.length === 0 || forceReload) {
         await clearStore('debts_receivable');
@@ -535,7 +527,6 @@
         for (const item of initialList) await dbAdd('debts_receivable', item);
       }
 
-      // 7. Šablony výdajů
       const existingTemplates = await dbGetAll('recurring_templates');
       if (existingTemplates.length === 0) {
         const defaultExpenses = [
@@ -612,23 +603,42 @@
       return created;
     }
 
-    // Zůstatek na účtu: výchozí stav 71 700 Kč + kumulativní příjmy mínus zaplacené výdaje
+    // --- KLÍČOVÝ VÝPOČET: PŘIČÍTÁNÍ SPLACENÝCH POHLEDÁVEK K DISPONIBILNÍMU ZŮSTATKU ---
     async function getCurrentAccountBalance(periodKey) {
       const baseInitialBalance = await getConfig('initial_account_balance', toCents('71700'));
       const allExpenses = await dbGetAll('monthly_expenses');
       const allIncomes = await dbGetAll('incomes');
+      const allReceivables = await dbGetAll('debts_receivable');
 
+      // 1. Běžné příjmy (výplata, připsané webové výdělky apod.)
       let totalIncomesCents = 0;
       for (const inc of allIncomes) {
         if (inc.period <= periodKey) totalIncomesCents += inc.amountCents;
       }
 
+      // 2. Úhrady od dlužníků (peníze, které ti lidé vrátili na účet / v hotovosti)
+      let totalReceivedDebtPaymentsCents = 0;
+      for (const rec of allReceivables) {
+        if (rec.history && Array.isArray(rec.history)) {
+          for (const h of rec.history) {
+            if (h.type === 'payment') {
+              const paymentPeriod = (h.date || '').slice(0, 7);
+              if (paymentPeriod && paymentPeriod <= periodKey) {
+                totalReceivedDebtPaymentsCents += (h.amountCents || 0);
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Zaplacené výdaje
       let totalPaidExpensesCents = 0;
       for (const exp of allExpenses) {
         if (exp.period <= periodKey && exp.isPaid) totalPaidExpensesCents += exp.plannedAmountCents;
       }
 
-      return baseInitialBalance + totalIncomesCents - totalPaidExpensesCents;
+      // VÝSLEDNÝ REÁLNÝ STAV ÚČTU
+      return baseInitialBalance + totalIncomesCents + totalReceivedDebtPaymentsCents - totalPaidExpensesCents;
     }
 
     async function getSortedGoalsFromDB() {
@@ -743,9 +753,9 @@
       const monthIncomes = allIncomes.filter(i => i.period === curPeriod);
       const totalIncomesCents = monthIncomes.reduce((sum, i) => sum + i.amountCents, 0);
 
-      // Čistý tok měsíce (Příjmy - Zaplacené výdaje). Zůstatek 71 700 Kč se zde NESČÍTÁ jako příjem!
       const monthlyNetCashFlowCents = totalIncomesCents - paidExpensesCents;
 
+      // Zůstatek včetně přičtených vrácených dluhů
       const currentAccountBalanceCents = await getCurrentAccountBalance(curPeriod);
       const { goals: smartGoals, unallocatedMoneyCents } = await getSmartGoalsAllocation(currentAccountBalanceCents);
 
@@ -781,7 +791,7 @@
             <div>
               <div class="card-title">Peníze na účtu k dispozici</div>
               <div class="metric-value" style="color: var(--accent-green);">${formatKc(currentAccountBalanceCents)}</div>
-              <div class="metric-sub">Výchozí stav 71 700 Kč (majetek/rezerva, není to měsíční příjem)</div>
+              <div class="metric-sub">Základ + příjmy + splacené pohledávky − zaplaceno</div>
             </div>
             <button id="dash-btn-add-income" class="btn btn-success" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">+ Příjem</button>
           </div>
@@ -843,7 +853,7 @@
                   </strong>
                 </div>
                 <div class="progress-bar-bg" style="height: 6px; margin-top: 0.2rem;">
-                  <div class="progress-bar-fill" style="width: ${g.percent}%; background-color: ${g.allocatedCents === g.targetCents ? 'var(--accent-green)' : 'var(--accent-amber)'};"></div>
+                  <div class="progress-bar-fill" style="width: ${g.percent}%; background-color:${g.allocatedCents === g.targetCents ? 'var(--accent-green)' : 'var(--accent-amber)'};"></div>
                 </div>
               </div>
             `).join('')}
@@ -1122,7 +1132,6 @@
           </div>
         </div>
 
-        <!-- SEKCE 1: INVESTICE -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin: 1.25rem 0 0.5rem 0;">
           <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
             Investice & Portfolia
@@ -1132,7 +1141,6 @@
 
         <div id="investments-list" class="item-list"></div>
 
-        <!-- SEKCE 2: WEBOVÉ VÝDĚLKY (FAPHOUSE A DALŠÍ) -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin: 1.5rem 0 0.5rem 0;">
           <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
             Webové výdělky & Tvorba
@@ -1143,7 +1151,6 @@
         <div id="web-earnings-list" class="item-list"></div>
       `;
 
-      // 1. Obsluha investic
       document.getElementById('btn-add-investment').addEventListener('click', async () => {
         const name = prompt('Název investiční platformy (např. Investown, Portu, Akcie):');
         if (!name || !name.trim()) return;
@@ -1202,7 +1209,6 @@
         invList.appendChild(card);
       });
 
-      // 2. Obsluha webových výdělků
       document.getElementById('btn-add-web-earning').addEventListener('click', async () => {
         const source = prompt('Zdroj výdělku (např. Faphouse, Patreon, jiné):', 'Faphouse');
         if (!source || !source.trim()) return;
@@ -1220,7 +1226,6 @@
           period: itemPeriod
         });
 
-        // Automatické připsání do měsíčních příjmů rozpočtu
         const addToBudget = confirm(`Chceš tuto částku ${formatKc(amountCents)} rovnou zapsat i jako oficiální příjem do rozpočtu na ${itemPeriod}?`);
         if (addToBudget) {
           await dbAdd('incomes', {
@@ -1269,7 +1274,7 @@
       }
     }
 
-    // --- ZÁLOŽKA 2: DLUHY & POHLEDÁVKY ---
+    // --- ZÁLOŽKA 2: DLUHY & POHLEDÁVKY (S AUTOMATICKÝM NAVÝŠENÍM ÚČTU PŘI PLATBĚ) ---
     async function renderDebts() {
       const curPeriod = formatPeriodKey(viewDate);
       const debts = await dbGetAll('debts_payable');
@@ -1289,7 +1294,7 @@
           <div class="card">
             <div class="card-title">Dluží mně</div>
             <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalReceivableCents)}</div>
-            <div class="metric-sub">Celkem pohledávky</div>
+            <div class="metric-sub">Při úhradě se přičte na účet</div>
           </div>
         </div>
 
@@ -1381,7 +1386,7 @@
               + Půjčit / Přičíst
             </button>
             <button class="btn btn-success btn-pay-debt" style="flex: 1; font-size: 0.75rem;">
-              − Zadat úhradu
+              − Zadat úhradu (+ účet)
             </button>
           </div>
         `;
@@ -1436,6 +1441,7 @@
           await render();
         });
 
+        // Úhrada pohledávky – zapíše platbu s typem 'payment', která se automaticky přičte na účet
         card.querySelector('.btn-pay-debt').addEventListener('click', async () => {
           let catMenu = `Na kterou položku ${personName} platí?\n\n`;
           personItems.forEach((it, idx) => {
@@ -1449,7 +1455,7 @@
           if (!targetItem) return alert('Neplatná volba.');
 
           const defaultAmount = (targetItem.remainingAmountCents / 100).toFixed(0);
-          const valStr = prompt(`Kolik Kč ${personName} zaplatil/a na "${targetItem.category}"?`, defaultAmount);
+          const valStr = prompt(`Kolik Kč ${personName} zaplatil/a na "${targetItem.category}"?\n(Tato částka se automaticky přičte k tvému zůstatku na účtu)`, defaultAmount);
           if (!valStr || !valStr.trim()) return;
 
           const paidCents = toCents(valStr);
@@ -1776,7 +1782,7 @@
       });
     }
 
-    // --- ZÁLOŽKA 4: 📊 MĚSÍČNÍ A ROČNÍ BILANCE (OSTRÝ START OD 11/2026) ---
+    // --- ZÁLOŽKA 4: 📊 MĚSÍČNÍ A ROČNÍ BILANCE ---
     async function renderStats() {
       const allExpenses = await dbGetAll('monthly_expenses');
       const allIncomes = await dbGetAll('incomes');
@@ -1797,7 +1803,6 @@
         const paidCents = monthExp.filter(e => e.isPaid).reduce((s, e) => s + e.plannedAmountCents, 0);
         const netCents = incCents - paidCents;
 
-        // Do oficiální roční bilance započítáváme až měsíce ostrého provozu (od 11/2026)
         if (!isBeforeStart) {
           yearlyIncomesCents += incCents;
           yearlyPaidExpensesCents += paidCents;
@@ -1982,6 +1987,7 @@
           <div class="card-title">Informace o aplikaci</div>
           <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
             <strong>Projekt:</strong> Koloběžníkův rozpočet<br>
+            <strong>Hotovostní propojení:</strong> Vrácené pohledávky se automaticky přičítají na účet<br>
             <strong>Investice & Web:</strong> Investown + webové příjmy (Faphouse)<br>
             <strong>Bilance:</strong> Ostrý start od 11/2026, zůstatek 71 700 Kč oddělen od příjmů
           </div>
