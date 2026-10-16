@@ -133,7 +133,7 @@
     .btn {
       border: none;
       border-radius: 8px;
-      padding: 0.6rem 1rem;
+      padding: 0.55rem 0.9rem;
       font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
@@ -148,16 +148,15 @@
     .btn-secondary { background-color: var(--border); color: var(--text-main); }
     .btn-danger { background-color: rgba(239, 68, 68, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
 
-    .badge-unverified {
-      background-color: rgba(245, 158, 11, 0.2);
-      color: var(--accent-amber);
-      border: 1px solid var(--accent-amber);
-      font-size: 0.7rem;
-      padding: 0.15rem 0.45rem;
-      border-radius: 4px;
-      display: inline-block;
-      margin-top: 0.25rem;
+    .sub-item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 0.85rem;
     }
+    .sub-item-row:last-child { border-bottom: none; }
 
     .progress-bar-bg {
       background-color: var(--border);
@@ -212,7 +211,7 @@
   <main id="app-container">
     <div class="card">
       <div class="card-title">Stav</div>
-      <div class="metric-value" style="color: var(--accent);">Spouštím aplikaci...</div>
+      <div class="metric-value" style="color: var(--accent);">Načítám rozpočet...</div>
     </div>
   </main>
 
@@ -224,9 +223,8 @@
   </nav>
 
   <script>
-    // --- DATABÁZOVÉ JÁDRO INDEXEDDB & HALÉŘOVÁ ARITMETIKA ---
     const DB_NAME = 'KolobeznikRozpocetDB';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2; // Zvýšeno pro čistou migraci nových pohledávek
 
     function toCents(amount) {
       if (amount === null || amount === undefined || amount === '') return 0;
@@ -306,46 +304,135 @@
       });
     }
 
-    // --- VÝCHOZÍ DATA ---
-    async function seedInitialData() {
-      const existing = await dbGetAll('recurring_templates');
-      if (existing.length > 0) return;
-
-      const defaultExpenses = [
-        { name: 'Česká televize', amountCents: toCents('150'), category: 'Bydlení a média', dueDay: 15, active: true },
-        { name: 'Vodafone – telefon', amountCents: toCents('266'), category: 'Komunikace', dueDay: 15, active: true },
-        { name: 'T-Mobile – internet', amountCents: toCents('450'), category: 'Komunikace', dueDay: 20, active: true },
-        { name: 'PVZP – pojištění', amountCents: toCents('400'), category: 'Pojištění', dueDay: 20, active: true },
-        { name: 'AvaFin/Crediton – splátka', amountCents: toCents('1100'), category: 'Dluhy a splátky', dueDay: 10, isLoanRepayment: true, active: true },
-        { name: 'Provident – splátka', amountCents: toCents('1500'), category: 'Dluhy a splátky', dueDay: 10, isLoanRepayment: true, active: true },
-        { name: 'Penzijní příspěvek', amountCents: toCents('100'), category: 'Spoření', dueDay: 15, active: true },
-        { name: 'ČEZ – záloha na elektřinu', amountCents: toCents('3000'), category: 'Energie', dueDay: 15, active: true },
-        { name: 'Terapie', amountCents: toCents('2000'), category: 'Zdraví a péče', dueDay: 1, active: true },
-        { name: 'Investown', amountCents: toCents('500'), category: 'Investice', dueDay: 10, active: true },
-        { name: 'ChatGPT Go', amountCents: toCents('200'), category: 'Předplatné a software', dueDay: 1, active: true },
-        { name: 'SIPO', amountCents: toCents('77'), category: 'Bydlení', dueDay: 12, active: true },
-        { name: 'Spotify', amountCents: toCents('185'), category: 'Zábava', dueDay: 5, active: true },
-        { name: 'Google AI Pro', amountCents: toCents('139,90'), category: 'Předplatné a software', dueDay: 8, active: true }
-      ];
-      for (const item of defaultExpenses) await dbAdd('recurring_templates', item);
-
-      await dbAdd('debts_payable', { name: 'Provident', principalRemainingCents: toCents('77327,33'), monthlyPaymentCents: toCents('1500'), dueDay: 10 });
-      await dbAdd('debts_payable', { name: 'AvaFin/Crediton', principalRemainingCents: toCents('19524'), monthlyPaymentCents: toCents('1100'), dueDay: 10 });
-
-      await dbAdd('debts_receivable', { debtor: 'Jiří', reason: 'Elektřina a drogerie', originalAmountCents: toCents('250'), remainingAmountCents: toCents('250'), verified: true });
-      await dbAdd('debts_receivable', { debtor: 'Jiří', reason: 'Fólie na bazén', originalAmountCents: toCents('500'), remainingAmountCents: toCents('500'), verified: true });
-      await dbAdd('debts_receivable', { debtor: 'Kov', reason: 'Půjčka', originalAmountCents: toCents('2500'), remainingAmountCents: toCents('2500'), verified: true });
-      await dbAdd('debts_receivable', { debtor: 'Magda', reason: 'Historický záznam (1 200 Kč + 100 Kč)', originalAmountCents: toCents('1300'), remainingAmountCents: toCents('1300'), verified: false, note: 'Vyžaduje ověření: jedna či dvě částky' });
-
-      await dbAdd('savings_goals', { name: 'Celková finanční rezerva a velké výdaje', targetCents: toCents('180000'), allocatedCents: 0 });
-      await dbAdd('savings_goals', { name: 'Zubní náhrada', targetCents: toCents('30000'), allocatedCents: 0 });
-      await dbAdd('savings_goals', { name: 'Cestování do Itálie, Monaka a Nice', targetCents: toCents('16000'), allocatedCents: 0 });
-      await dbAdd('savings_goals', { name: 'Nová koloběžka', targetCents: toCents('25000'), allocatedCents: 0 });
-      await dbAdd('savings_goals', { name: 'Brikety na zimu', targetCents: toCents('20000'), allocatedCents: 0 });
-      await dbAdd('savings_goals', { name: 'Právní výdaje', targetCents: toCents('0'), allocatedCents: 0 });
+    async function clearStore(storeName) {
+      const db = await openDB();
+      return new Promise((res, rej) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const req = tx.objectStore(storeName).clear();
+        req.onsuccess = () => res();
+        req.onerror = () => rej(req.error);
+      });
     }
 
-    // --- LOGIKA MĚSÍCE ---
+    // --- POHLEDÁVKY K 15. 10. 2026 ---
+    async function seedInitialData(forceReload = false) {
+      const existingReceivables = await dbGetAll('debts_receivable');
+      
+      // Aktualizujeme pohledávky, pokud jsou prázdné nebo vyžádán reload
+      if (existingReceivables.length === 0 || forceReload) {
+        await clearStore('debts_receivable');
+
+        const updatedReceivables = [
+          // 1. KOV
+          {
+            debtor: 'KOV',
+            category: 'Půjčky',
+            originalAmountCents: toCents('3400'),
+            remainingAmountCents: toCents('3400'),
+            history: []
+          },
+          {
+            debtor: 'KOV',
+            category: 'Elektřina a drogerie',
+            originalAmountCents: toCents('2750'),
+            remainingAmountCents: toCents('2750'),
+            history: []
+          },
+          {
+            debtor: 'KOV',
+            category: 'Fólie na bazén',
+            originalAmountCents: toCents('500'),
+            remainingAmountCents: toCents('500'),
+            history: []
+          },
+
+          // 2. JIŘÍ
+          {
+            debtor: 'JIŘÍ',
+            category: 'Půjčky',
+            originalAmountCents: toCents('0'),
+            remainingAmountCents: toCents('0'),
+            history: []
+          },
+          {
+            debtor: 'JIŘÍ',
+            category: 'Elektřina a drogerie',
+            originalAmountCents: toCents('1500'),
+            remainingAmountCents: toCents('250'),
+            history: [
+              { date: '2026-10-13', amountCents: toCents('1250'), note: 'Zaplaceno na elektřinu a drogerii' }
+            ]
+          },
+          {
+            debtor: 'JIŘÍ',
+            category: 'Fólie na bazén',
+            originalAmountCents: toCents('500'),
+            remainingAmountCents: toCents('500'),
+            history: []
+          },
+
+          // 3. MAGDA
+          {
+            debtor: 'MAGDA',
+            category: 'Půjčky',
+            originalAmountCents: toCents('700'),
+            remainingAmountCents: toCents('700'),
+            history: []
+          },
+          {
+            debtor: 'MAGDA',
+            category: 'Elektřina a drogerie',
+            originalAmountCents: toCents('1500'),
+            remainingAmountCents: toCents('1500'),
+            history: []
+          },
+          {
+            debtor: 'MAGDA',
+            category: 'Fólie na bazén',
+            originalAmountCents: toCents('500'),
+            remainingAmountCents: toCents('500'),
+            history: []
+          }
+        ];
+
+        for (const item of updatedReceivables) {
+          await dbAdd('debts_receivable', item);
+        }
+      }
+
+      // Výchozí šablony výdajů
+      const existingTemplates = await dbGetAll('recurring_templates');
+      if (existingTemplates.length === 0) {
+        const defaultExpenses = [
+          { name: 'Česká televize', amountCents: toCents('150'), category: 'Bydlení a média', dueDay: 15, active: true },
+          { name: 'Vodafone – telefon', amountCents: toCents('266'), category: 'Komunikace', dueDay: 15, active: true },
+          { name: 'T-Mobile – internet', amountCents: toCents('450'), category: 'Komunikace', dueDay: 20, active: true },
+          { name: 'PVZP – pojištění', amountCents: toCents('400'), category: 'Pojištění', dueDay: 20, active: true },
+          { name: 'AvaFin/Crediton – splátka', amountCents: toCents('1100'), category: 'Dluhy a splátky', dueDay: 10, isLoanRepayment: true, active: true },
+          { name: 'Provident – splátka', amountCents: toCents('1500'), category: 'Dluhy a splátky', dueDay: 10, isLoanRepayment: true, active: true },
+          { name: 'Penzijní příspěvek', amountCents: toCents('100'), category: 'Spoření', dueDay: 15, active: true },
+          { name: 'ČEZ – záloha na elektřinu', amountCents: toCents('3000'), category: 'Energie', dueDay: 15, active: true },
+          { name: 'Terapie', amountCents: toCents('2000'), category: 'Zdraví a péče', dueDay: 1, active: true },
+          { name: 'Investown', amountCents: toCents('500'), category: 'Investice', dueDay: 10, active: true },
+          { name: 'ChatGPT Go', amountCents: toCents('200'), category: 'Předplatné a software', dueDay: 1, active: true },
+          { name: 'SIPO', amountCents: toCents('77'), category: 'Bydlení', dueDay: 12, active: true },
+          { name: 'Spotify', amountCents: toCents('185'), category: 'Zábava', dueDay: 5, active: true },
+          { name: 'Google AI Pro', amountCents: toCents('139,90'), category: 'Předplatné a software', dueDay: 8, active: true }
+        ];
+        for (const item of defaultExpenses) await dbAdd('recurring_templates', item);
+
+        await dbAdd('debts_payable', { name: 'Provident', principalRemainingCents: toCents('77327,33'), monthlyPaymentCents: toCents('1500'), dueDay: 10 });
+        await dbAdd('debts_payable', { name: 'AvaFin/Crediton', principalRemainingCents: toCents('19524'), monthlyPaymentCents: toCents('1100'), dueDay: 10 });
+
+        await dbAdd('savings_goals', { name: 'Celková finanční rezerva a velké výdaje', targetCents: toCents('180000'), allocatedCents: 0 });
+        await dbAdd('savings_goals', { name: 'Zubní náhrada', targetCents: toCents('30000'), allocatedCents: 0 });
+        await dbAdd('savings_goals', { name: 'Cestování do Itálie, Monaka a Nice', targetCents: toCents('16000'), allocatedCents: 0 });
+        await dbAdd('savings_goals', { name: 'Nová koloběžka', targetCents: toCents('25000'), allocatedCents: 0 });
+        await dbAdd('savings_goals', { name: 'Brikety na zimu', targetCents: toCents('20000'), allocatedCents: 0 });
+        await dbAdd('savings_goals', { name: 'Právní výdaje', targetCents: toCents('0'), allocatedCents: 0 });
+      }
+    }
+
     function getPeriodKey() {
       const now = new Date();
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -378,8 +465,8 @@
       return created;
     }
 
-    // --- HLAVNÍ APLIKAČNÍ KÓD ---
-    let activeTab = 'expenses';
+    // --- UŽIVATELSKÉ ROZHRANÍ ---
+    let activeTab = 'debts'; // Otevřeme rovnou novou evidenci dluhů
     const currentPeriod = getPeriodKey();
 
     const czechMonths = ["Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"];
@@ -401,6 +488,7 @@
       render();
     }
 
+    // --- ZÁLOŽKA 1: PLATBY ---
     async function renderExpenses() {
       const allExpenses = await dbGetAll('monthly_expenses');
       const monthExpenses = allExpenses.filter(e => e.period === currentPeriod);
@@ -539,6 +627,7 @@
       });
     }
 
+    // --- ZÁLOŽKA 2: PŮJČKY & POHLEDÁVKY (STRUKTUROVANÁ EVIDENCE) ---
     async function renderDebts() {
       const debts = await dbGetAll('debts_payable');
       const totalDebtCents = debts.reduce((sum, d) => sum + d.principalRemainingCents, 0);
@@ -557,24 +646,110 @@
           <div class="card">
             <div class="card-title">Dluží mně</div>
             <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalReceivableCents)}</div>
-            <div class="metric-sub">${receivables.length} pohledávky</div>
+            <div class="metric-sub">K 15. 10. 2026</div>
           </div>
         </div>
 
-        <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 1rem 0 0.5rem 0;">
+        <div style="margin: 1.25rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
+          <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
+            Evidence pohledávek (kdo mi dluží)
+          </h2>
+        </div>
+
+        <div id="receivables-grouped" class="item-list"></div>
+
+        <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 1.5rem 0 0.5rem 0;">
           Moje půjčky k úhradě
         </h2>
         <div id="debts-list" class="item-list"></div>
-
-        <div style="margin: 1.5rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
-          <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
-            Pohledávky (Dluží mně)
-          </h2>
-          <button id="btn-add-receivable" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">+ Nová pohledávka</button>
-        </div>
-        <div id="receivables-list" class="item-list"></div>
       `;
 
+      // Seskupení pohledávek podle osob (KOV, JIŘÍ, MAGDA)
+      const debtors = ['KOV', 'JIŘÍ', 'MAGDA'];
+      const groupedContainer = document.getElementById('receivables-grouped');
+
+      debtors.forEach(personName => {
+        const personItems = receivables.filter(r => r.debtor.toUpperCase() === personName);
+        const personTotalCents = personItems.reduce((sum, r) => sum + r.remainingAmountCents, 0);
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.marginBottom = '0.75rem';
+
+        let subItemsHtml = '';
+        personItems.forEach(item => {
+          const historyText = item.history && item.history.length > 0 
+            ? `<div style="font-size: 0.7rem; color: var(--accent-green); margin-top: 0.15rem;">✓ Zaplaceno: ${formatKc(item.history[0].amountCents)} (${item.history[0].date})</div>` 
+            : '';
+
+          subItemsHtml += `
+            <div class="sub-item-row">
+              <div style="flex: 1;">
+                <strong>${item.category}</strong>
+                ${historyText}
+              </div>
+              <div style="text-align: right; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-weight: 700; color: ${item.remainingAmountCents > 0 ? 'var(--text-main)' : 'var(--text-muted)'};">
+                  ${formatKc(item.remainingAmountCents)}
+                </span>
+                <button class="btn btn-secondary btn-pay-category" data-id="${item.id}" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">
+                  Zadat platbu
+                </button>
+              </div>
+            </div>
+          `;
+        });
+
+        card.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+            <div>
+              <div style="font-size: 1.1rem; font-weight: 800; color: var(--accent);">${personName}</div>
+              <div class="expense-meta">Rozpad podle položek</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 1.25rem; font-weight: 800; color: var(--accent-green);">${formatKc(personTotalCents)}</div>
+              <div class="expense-meta">Celkem dluží</div>
+            </div>
+          </div>
+          <div>${subItemsHtml}</div>
+        `;
+
+        // Obsluha tlačítka úhrady pro danou položku
+        card.querySelectorAll('.btn-pay-category').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = parseInt(btn.getAttribute('data-id'), 10);
+            const targetItem = receivables.find(r => r.id === id);
+            if (!targetItem) return;
+
+            const valStr = prompt(
+              `Záznam platby od ${targetItem.debtor} na položku "${targetItem.category}":\n` +
+              `Aktuálně zbývá doplatit: ${(targetItem.remainingAmountCents / 100).toFixed(2)} Kč\n\n` +
+              `Kolik Kč ${targetItem.debtor} zaplatil?`,
+              (targetItem.remainingAmountCents / 100).toFixed(2)
+            );
+
+            if (valStr !== null && valStr.trim() !== '') {
+              const dateStr = prompt('Datum úhrady (RRRR-MM-DD):', new Date().toISOString().slice(0, 10));
+              const paidCents = toCents(valStr);
+
+              targetItem.remainingAmountCents = Math.max(0, targetItem.remainingAmountCents - paidCents);
+              if (!targetItem.history) targetItem.history = [];
+              targetItem.history.push({
+                date: dateStr || new Date().toISOString().slice(0, 10),
+                amountCents: paidCents,
+                note: `Úhrada na ${targetItem.category}`
+              });
+
+              await dbPut('debts_receivable', targetItem);
+              await render();
+            }
+          });
+        });
+
+        groupedContainer.appendChild(card);
+      });
+
+      // Moje půjčky
       const debtsList = document.getElementById('debts-list');
       debts.forEach(debt => {
         if (!debt.paymentHistory) debt.paymentHistory = [];
@@ -643,87 +818,9 @@
 
         debtsList.appendChild(card);
       });
-
-      const recList = document.getElementById('receivables-list');
-      receivables.forEach(rec => {
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.style.marginBottom = '0.5rem';
-
-        card.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-              <div style="font-size: 1rem; font-weight: 700;">${rec.debtor}</div>
-              <div class="expense-meta">${rec.reason}</div>
-              ${!rec.verified ? `<div class="badge-unverified">⚠️ Vyžaduje ověření: ${rec.note || ''}</div>` : ''}
-            </div>
-            <div style="text-align: right;">
-              <div style="font-size: 1.15rem; font-weight: 800; color: var(--accent-green);">${formatKc(rec.remainingAmountCents)}</div>
-              <div class="expense-meta">zbývá doplatit</div>
-            </div>
-          </div>
-
-          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-            <button class="btn btn-secondary btn-pay-rec" style="font-size: 0.75rem;">Přijata platba</button>
-            <button class="btn btn-secondary btn-edit-rec" style="font-size: 0.75rem;">Upravit</button>
-            ${!rec.verified ? `<button class="btn btn-success btn-verify" style="font-size: 0.75rem;">Ověřit</button>` : ''}
-          </div>
-        `;
-
-        card.querySelector('.btn-pay-rec').addEventListener('click', async () => {
-          const val = prompt(`Kolik Kč ti ${rec.debtor} vrátil/a?`, (rec.remainingAmountCents / 100).toFixed(2));
-          if (val && val.trim()) {
-            rec.remainingAmountCents = Math.max(0, rec.remainingAmountCents - toCents(val));
-            await dbPut('debts_receivable', rec);
-            await render();
-          }
-        });
-
-        card.querySelector('.btn-edit-rec').addEventListener('click', async () => {
-          const val = prompt(`Zadej novou zbývající částku pro ${rec.debtor} v Kč:`, (rec.remainingAmountCents / 100).toFixed(2));
-          if (val !== null && val.trim() !== '') {
-            rec.remainingAmountCents = toCents(val);
-            await dbPut('debts_receivable', rec);
-            await render();
-          }
-        });
-
-        const btnVerify = card.querySelector('.btn-verify');
-        if (btnVerify) {
-          btnVerify.addEventListener('click', async () => {
-            const val = prompt('Zadej ověřenou správnou celkovou částku pro Magdu v Kč:', (rec.remainingAmountCents / 100).toFixed(2));
-            if (val !== null && val.trim() !== '') {
-              rec.remainingAmountCents = toCents(val);
-              rec.originalAmountCents = toCents(val);
-              rec.verified = true;
-              rec.note = 'Ověřeno';
-              await dbPut('debts_receivable', rec);
-              await render();
-            }
-          });
-        }
-
-        recList.appendChild(card);
-      });
-
-      document.getElementById('btn-add-receivable').addEventListener('click', async () => {
-        const debtor = prompt('Jméno nebo přezdívka:');
-        if (!debtor || !debtor.trim()) return;
-        const reason = prompt('Důvod:');
-        const amount = prompt('Půjčená částka v Kč:');
-        if (amount && amount.trim()) {
-          await dbAdd('debts_receivable', {
-            debtor: debtor.trim(),
-            reason: reason ? reason.trim() : '',
-            originalAmountCents: toCents(amount),
-            remainingAmountCents: toCents(amount),
-            verified: true
-          });
-          await render();
-        }
-      });
     }
 
+    // --- ZÁLOŽKA 3: CÍLE ---
     async function renderGoals() {
       const goals = await dbGetAll('savings_goals');
       const totalAllocatedCents = goals.reduce((sum, g) => sum + (g.allocatedCents || 0), 0);
@@ -797,13 +894,14 @@
       });
     }
 
+    // --- ZÁLOŽKA 4: NASTAVENÍ ---
     async function renderSettings() {
       const container = document.getElementById('app-container');
       container.innerHTML = `
         <div class="card">
-          <div class="card-title">Zálohování a bezpečnost dat</div>
+          <div class="card-title">Zálohování a obnova dat</div>
           <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.4;">
-            Veškerá data jsou bezpečně uložena v tomto zařízení (IndexedDB). Kdykoliv si můžeš stáhnout kompletní záložní soubor do mobilu.
+            Veškerá data jsou bezpečně uložena v tomto zařízení (IndexedDB). Kdykoliv si můžeš stáhnout kompletní záložní soubor.
           </div>
 
           <button id="btn-export-backup" class="btn btn-success" style="width: 100%; margin-bottom: 0.75rem;">
@@ -814,6 +912,10 @@
             ⬆️ Obnovit data ze souboru
             <input type="file" id="input-restore" accept=".json" style="display: none;">
           </label>
+
+          <button id="btn-force-reload-data" class="btn btn-danger" style="width: 100%; margin-top: 0.5rem;">
+            🔄 Synchronizovat přesné pohledávky k 15. 10. 2026
+          </button>
         </div>
 
         <div class="card">
@@ -822,7 +924,7 @@
             <strong>Projekt:</strong> Koloběžníkův rozpočet<br>
             <strong>Typ:</strong> Lokální finanční PWA<br>
             <strong>Ukládání:</strong> IndexedDB offline ready<br>
-            <strong>Matematika:</strong> Haléřová aritmetika
+            <strong>Pohledávky k:</strong> 15. 10. 2026 (KOV: 6 650 Kč, JIŘÍ: 750 Kč, MAGDA: 2 700 Kč = 10 100 Kč)
           </div>
         </div>
       `;
@@ -844,6 +946,14 @@
         a.href = URL.createObjectURL(blob);
         a.download = `kolobeznik-rozpocet-${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
+      });
+
+      document.getElementById('btn-force-reload-data').addEventListener('click', async () => {
+        if (confirm('Nastavit přesné pohledávky k 15. 10. 2026 (KOV 6 650 Kč, JIŘÍ 750 Kč, MAGDA 2 700 Kč)?')) {
+          await seedInitialData(true);
+          alert('Pohledávky byly nastaveny přesně podle aktuálního stavu k 15. 10. 2026.');
+          setTab('debts');
+        }
       });
 
       document.getElementById('input-restore').addEventListener('change', async (e) => {
@@ -868,7 +978,7 @@
               }
             }
             alert('Záloha byla úspěšně obnovena!');
-            setTab('expenses');
+            setTab('debts');
           } catch (err) {
             alert('Chyba: ' + err.message);
           }
