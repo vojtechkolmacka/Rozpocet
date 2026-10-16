@@ -152,7 +152,6 @@
       border-radius: 6px;
       cursor: pointer;
     }
-    .btn-icon:hover { color: var(--text-main); }
 
     .btn {
       border: none;
@@ -225,6 +224,16 @@
       height: 10px;
       border-radius: 2px;
       flex-shrink: 0;
+    }
+
+    .prio-badge {
+      background-color: var(--accent);
+      color: #000;
+      font-weight: 800;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
     }
 
     .nav-bar {
@@ -419,7 +428,7 @@
       });
     }
 
-    // --- VÝCHOZÍ CÍLE S TVÝMI AKTUÁLNÍMI PRIORITAMI ---
+    // --- VÝCHOZÍ CÍLE S PŘESNÝMI POZICEMI ---
     async function seedInitialData(forceReload = false) {
       const currentInitialBalance = await getConfig('initial_account_balance', null);
       if (currentInitialBalance === null || forceReload) {
@@ -429,7 +438,6 @@
       const existingGoals = await dbGetAll('savings_goals');
       if (existingGoals.length === 0 || forceReload) {
         await clearStore('savings_goals');
-        // Přesné pořadí priorit dle tvého zadání
         const prioritizedGoals = [
           { name: 'Brikety na zimu', targetCents: toCents('11000'), priority: 1, paused: false },
           { name: 'Právní výdaje', targetCents: toCents('20000'), priority: 2, paused: false },
@@ -553,12 +561,23 @@
       return baseInitialBalance + totalIncomesCents - totalPaidExpensesCents;
     }
 
-    // Inteligentní alokace: respektuje prioritu a stav "odloženo"
-    async function getSmartGoalsAllocation(availableMoneyCents) {
+    // Načte cíle a normalizuje priority (1, 2, 3...)
+    async function getSortedGoalsFromDB() {
       const goals = await dbGetAll('savings_goals');
-      // Řazení podle priority
-      goals.sort((a, b) => (a.priority || 99) - (b.priority || 99));
+      goals.sort((a, b) => (Number(a.priority) || 99) - (Number(b.priority) || 99));
+      return goals;
+    }
 
+    // Uloží srovnané priority zpět do DB
+    async function reassignAndSavePriorities(goalsArray) {
+      for (let i = 0; i < goalsArray.length; i++) {
+        goalsArray[i].priority = i + 1;
+        await dbPut('savings_goals', goalsArray[i]);
+      }
+    }
+
+    async function getSmartGoalsAllocation(availableMoneyCents) {
+      const goals = await getSortedGoalsFromDB();
       let remainingMoney = Math.max(0, availableMoneyCents);
       const allocatedGoals = [];
 
@@ -566,7 +585,6 @@
         const target = g.targetCents || 0;
         let funded = 0;
 
-        // Pokud není odloženo, alokujeme dostupné peníze
         if (!g.paused && target > 0) {
           funded = Math.min(remainingMoney, target);
           remainingMoney -= funded;
@@ -612,7 +630,7 @@
       return `<svg viewBox="0 0 36 36" class="chart-svg">${paths}</svg>`;
     }
 
-    let activeTab = 'dashboard';
+    let activeTab = 'goals'; // Otevřeme rovnou záložku cílů pro kontrolu
 
     document.getElementById('nav-dashboard').addEventListener('click', () => setTab('dashboard'));
     document.getElementById('nav-expenses').addEventListener('click', () => setTab('expenses'));
@@ -686,7 +704,7 @@
             <div>
               <div class="card-title">Peníze na účtu k dispozici</div>
               <div class="metric-value" style="color: var(--accent-green);">${formatKc(currentAccountBalanceCents)}</div>
-              <div class="metric-sub">Kryje tvé priority: brikety, právo a část rezervy</div>
+              <div class="metric-sub">Kryje tvé priority dle nastaveného pořadí</div>
             </div>
             <button id="dash-btn-add-income" class="btn btn-success" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">+ Příjem</button>
           </div>
@@ -726,13 +744,13 @@
         <div class="card" style="cursor: pointer;" id="dash-card-goals">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
             <div class="card-title" style="margin-bottom:0;">Aktuální krytí cílů dle priorit</div>
-            <span style="font-size: 0.75rem; color: var(--accent);">Změnit priority ➔</span>
+            <span style="font-size: 0.75rem; color: var(--accent);">Změnit pořadí cílů ➔</span>
           </div>
           <div style="display: flex; flex-direction: column; gap: 0.45rem;">
             ${smartGoals.map(g => `
               <div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
-                  <span>${g.priority}. ${g.name}${g.paused ? '<em style="color:var(--text-muted); font-size:0.7rem;">(odloženo)</em>' : ''}</span>
+                  <span><strong>#${g.priority}</strong> ${g.name}${g.paused ? '<em style="color:var(--text-muted); font-size:0.7rem;">(odloženo)</em>' : ''}</span>
                   <strong style="color: ${g.allocatedCents === g.targetCents ? 'var(--accent-green)' : (g.allocatedCents > 0 ? 'var(--accent-amber)' : 'var(--text-muted)')};">
                     ${formatKc(g.allocatedCents)} z ${formatKc(g.targetCents)} (${g.percent} %)
                   </strong>
@@ -1285,7 +1303,7 @@
       });
     }
 
-    // --- ZÁLOŽKA 3: CHYTRÉ CÍLE S PŘEPÍNÁNÍM PRIORIT (▲/▼) A ODLOŽENÍM ---
+    // --- ZÁLOŽKA 3: CHYTRÉ CÍLE S PLNOU A SPOLEHLIVOU ZMĚNOU POŘADÍ ---
     async function renderGoals() {
       const curPeriod = formatPeriodKey(viewDate);
       const currentAccountBalanceCents = await getCurrentAccountBalance(curPeriod);
@@ -1339,7 +1357,7 @@
 
         <div style="margin: 1.25rem 0 0.5rem 0; display: flex; justify-content: space-between; align-items: center;">
           <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">
-            Seznam cílů (šipkami měníš prioritu)
+            Seznam cílů (řazeno dle priority)
           </h2>
           <button id="btn-add-new-goal" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">+ Nový cíl</button>
         </div>
@@ -1352,12 +1370,14 @@
         if (!name || !name.trim()) return;
         const targetStr = prompt(`Cílová částka pro "${name}" v Kč:`, '10000');
 
-        await dbAdd('savings_goals', {
+        const all = await getSortedGoalsFromDB();
+        all.push({
           name: name.trim(),
           targetCents: toCents(targetStr),
-          priority: smartGoals.length + 1,
+          priority: all.length + 1,
           paused: false
         });
+        await reassignAndSavePriorities(all);
         await render();
       });
 
@@ -1371,17 +1391,14 @@
 
         card.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <div style="display: flex; flex-direction: column; gap: 0.15rem;">
-                <button class="btn-icon btn-move-up" data-id="${goal.id}" title="Zvýšit prioritu" ${idx === 0 ? 'disabled style="opacity:0.2;"' : ''}>▲</button>
-                <button class="btn-icon btn-move-down" data-id="${goal.id}" title="Snížit prioritu" ${idx === smartGoals.length - 1 ? 'disabled style="opacity:0.2;"' : ''}>▼</button>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.2rem;">
+                <span class="prio-badge btn-pick-prio" data-idx="${idx}" title="Klepnutím změníš pozici">#${goal.priority}</span>
+                <span style="font-size: 1rem; font-weight: 700;">${goal.name}</span>
               </div>
-              <div>
-                <div style="font-size: 1rem; font-weight: 700;">
-                  ${goal.priority}. ${goal.name}
-                  ${goal.paused ? '<span style="font-size:0.7rem; color:var(--accent-amber); margin-left:0.3rem; border:1px solid var(--accent-amber); padding:0.1rem 0.35rem; border-radius:4px;">Odloženo (počká)</span>' : ''}
-                </div>
-                <div class="expense-meta">Cíl: <strong>${formatKc(goal.targetCents)}</strong></div>
+              <div class="expense-meta">
+                Cíl: <strong>${formatKc(goal.targetCents)}</strong>
+                ${goal.paused ? '<span style="font-size:0.7rem; color:var(--accent-amber); margin-left:0.3rem; border:1px solid var(--accent-amber); padding:0.1rem 0.35rem; border-radius:4px;">Odloženo (počká)</span>' : ''}
               </div>
             </div>
 
@@ -1401,58 +1418,75 @@
             <span style="color: ${goal.paused ? 'var(--text-muted)' : (isFullyFunded ? 'var(--accent-green)' : 'var(--accent-amber)')}; font-weight: 600;">
               ${goal.paused ? 'Peníze se přednostně použijí na jiné cíle' : (isFullyFunded ? '✓ Kompletně pokryto penězi z účtu' : `Zbývá našetřit: ${formatKc(goal.missingCents)}`)}
             </span>
-            <div style="display: flex; gap: 0.4rem;">
-              <button class="btn btn-secondary btn-toggle-pause" data-id="${goal.id}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
-                ${goal.paused ? '▶ Aktivovat' : '⏸ Odložit'}
-              </button>
-              <button class="btn btn-secondary btn-edit-goal" data-id="${goal.id}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
-                ✏️ Upravit
-              </button>
-            </div>
+          </div>
+
+          <!-- VELKÁ TLÍČÍTKA PRO SNADNÉ PŘESOUVÁNÍ NA MOBILU -->
+          <div style="display: flex; gap: 0.35rem; margin-top: 0.75rem;">
+            <button class="btn btn-secondary btn-move-up" data-idx="${idx}" style="flex: 1;" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>
+              ▲ Nahoru
+            </button>
+            <button class="btn btn-secondary btn-move-down" data-idx="${idx}" style="flex: 1;" ${idx === smartGoals.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>
+              ▼ Dolů
+            </button>
+            <button class="btn btn-secondary btn-toggle-pause" data-id="${goal.id}" style="padding: 0.4rem 0.6rem;">
+              ${goal.paused ? '▶ Aktivovat' : '⏸ Odložit'}
+            </button>
+            <button class="btn btn-secondary btn-edit-goal" data-id="${goal.id}" style="padding: 0.4rem 0.6rem;">
+              ✏️
+            </button>
           </div>
         `;
 
-        // Posun priority nahoru (▲)
+        // Posun NAHORU
         const btnUp = card.querySelector('.btn-move-up');
         if (btnUp && idx > 0) {
           btnUp.addEventListener('click', async () => {
-            const prevGoal = smartGoals[idx - 1];
-            const tempPrio = goal.priority;
-            goal.priority = prevGoal.priority;
-            prevGoal.priority = tempPrio;
-            await dbPut('savings_goals', goal);
-            await dbPut('savings_goals', prevGoal);
+            const all = await getSortedGoalsFromDB();
+            const currentItem = all.splice(idx, 1)[0];
+            all.splice(idx - 1, 0, currentItem);
+            await reassignAndSavePriorities(all);
             await render();
           });
         }
 
-        // Posun priority dolů (▼)
+        // Posun DOLŮ
         const btnDown = card.querySelector('.btn-move-down');
         if (btnDown && idx < smartGoals.length - 1) {
           btnDown.addEventListener('click', async () => {
-            const nextGoal = smartGoals[idx + 1];
-            const tempPrio = goal.priority;
-            goal.priority = nextGoal.priority;
-            nextGoal.priority = tempPrio;
-            await dbPut('savings_goals', goal);
-            await dbPut('savings_goals', nextGoal);
+            const all = await getSortedGoalsFromDB();
+            const currentItem = all.splice(idx, 1)[0];
+            all.splice(idx + 1, 0, currentItem);
+            await reassignAndSavePriorities(all);
             await render();
           });
         }
 
-        // Přepínač "Odložit (počká)"
+        // Klepnutí na štítek #1, #2 pro přímé zadání pozice
+        card.querySelector('.btn-pick-prio').addEventListener('click', async () => {
+          const newPosStr = prompt(`Zadej novou pozici pro "${goal.name}" (1 až ${smartGoals.length}):`, (idx + 1).toString());
+          if (!newPosStr) return;
+          const targetIndex = parseInt(newPosStr, 10) - 1;
+          if (targetIndex >= 0 && targetIndex < smartGoals.length && targetIndex !== idx) {
+            const all = await getSortedGoalsFromDB();
+            const currentItem = all.splice(idx, 1)[0];
+            all.splice(targetIndex, 0, currentItem);
+            await reassignAndSavePriorities(all);
+            await render();
+          }
+        });
+
+        // Odložit / Aktivovat
         card.querySelector('.btn-toggle-pause').addEventListener('click', async () => {
           goal.paused = !goal.paused;
           await dbPut('savings_goals', goal);
           await render();
         });
 
-        // Editace cíle
+        // Úprava částky, názvu, smazání
         card.querySelector('.btn-edit-goal').addEventListener('click', async () => {
           const action = prompt(
             `Úprava: ${goal.name}\n` +
-            `Cílová částka: ${(goal.targetCents / 100).toFixed(0)} Kč\n` +
-            `Pořadí priority: ${goal.priority}\n\n` +
+            `Cílová částka: ${(goal.targetCents / 100).toFixed(0)} Kč\n\n` +
             `1 = Změnit cílovou částku\n` +
             `2 = Přejmenovat cíl\n` +
             `3 = Smazat tento cíl`,
@@ -1476,6 +1510,8 @@
           } else if (action === '3') {
             if (confirm(`Opravdu smazat cíl "${goal.name}"?`)) {
               await dbDelete('savings_goals', goal.id);
+              const all = await getSortedGoalsFromDB();
+              await reassignAndSavePriorities(all);
               await render();
             }
           }
@@ -1543,7 +1579,7 @@
           </label>
 
           <button id="btn-force-reload-data" class="btn btn-danger" style="width: 100%; margin-top: 0.5rem;">
-            🔄 Nastavit priority: Brikety, Právo, Rezerva (71 500 Kč)
+            🔄 Reset do výchozího stavu k 15. 10. 2026
           </button>
         </div>
 
@@ -1551,8 +1587,8 @@
           <div class="card-title">Informace o aplikaci</div>
           <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
             <strong>Projekt:</strong> Koloběžníkův rozpočet<br>
-            <strong>Priority:</strong> Posun šipkami (▲ / ▼) a možnost odložit cíl (počká)<br>
-            <strong>Krytí:</strong> Automatické přelévání peněz z disponibilního zůstatku na účtu
+            <strong>Cíle:</strong> Plné přehazování priorit tlačítky ▲ / ▼ i přímým zadáním pozice<br>
+            <strong>Chytrá alokace:</strong> Peníze se okamžitě přelévají do cílů na horních pozicích
           </div>
         </div>
       `;
@@ -1603,7 +1639,7 @@
       document.getElementById('btn-force-reload-data').addEventListener('click', async () => {
         if (confirm('Nastavit znovu výchozí priority (Brikety, Právo, Rezerva) a 71 500 Kč na účtu?')) {
           await seedInitialData(true);
-          alert('Priority byly nastaveny.');
+          alert('Data byla nastavena.');
           setTab('goals');
         }
       });
