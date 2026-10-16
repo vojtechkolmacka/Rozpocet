@@ -1,5 +1,5 @@
-// budget.js - Finanční logika pro měsíční rozpočty a platby
-import { dbGetAll, dbAdd, dbPut, toCents } from './db.js';
+// budget.js - Finanční logika pro měsíční rozpočty, platby a správu položek
+import { dbGetAll, dbAdd, dbPut, dbDelete, toCents } from './db.js';
 
 /**
  * Vrátí textový klíč období ve formátu "YYYY-MM" (např. "2026-10")
@@ -17,12 +17,10 @@ export async function ensureMonthInitialized(periodKey) {
   const allMonthly = await dbGetAll('monthly_expenses');
   const monthItems = allMonthly.filter(item => item.period === periodKey);
 
-  // Pokud pro tento měsíc již záznamy máme, nic nového negenerujeme
   if (monthItems.length > 0) {
     return monthItems;
   }
 
-  // Načteme aktivní šablony pravidelných výdajů
   const templates = await dbGetAll('recurring_templates');
   const activeTemplates = templates.filter(t => t.active !== false);
 
@@ -34,7 +32,7 @@ export async function ensureMonthInitialized(periodKey) {
       category: t.category,
       plannedAmountCents: t.amountCents,
       paidAmountCents: 0,
-      dueDay: t.dueDay,
+      dueDay: t.dueDay || 15,
       period: periodKey,
       isPaid: false,
       paidDate: null,
@@ -69,6 +67,88 @@ export async function toggleExpensePaid(expenseId, isPaidNow, actualPaidCents = 
 
   await dbPut('monthly_expenses', expense);
   return expense;
+}
+
+/**
+ * Úprava existující platby (např. změna částky nebo názvu v daném měsíci)
+ */
+export async function updateExpense(expenseId, updatedFields) {
+  const allExpenses = await dbGetAll('monthly_expenses');
+  const expense = allExpenses.find(e => e.id === expenseId);
+  if (!expense) return null;
+
+  Object.assign(expense, updatedFields);
+  await dbPut('monthly_expenses', expense);
+
+  // Pokud je položka propojená se šablonou a chceme propsat i do budoucna
+  if (updatedFields.updateTemplate && expense.templateId) {
+    const templates = await dbGetAll('recurring_templates');
+    const t = templates.find(item => item.id === expense.templateId);
+    if (t) {
+      if (updatedFields.name) t.name = updatedFields.name;
+      if (updatedFields.plannedAmountCents) t.amountCents = updatedFields.plannedAmountCents;
+      if (updatedFields.dueDay) t.dueDay = updatedFields.dueDay;
+      await dbPut('recurring_templates', t);
+    }
+  }
+
+  return expense;
+}
+
+/**
+ * Přidání nového výdaje:
+ * - pokud isRecurring = true: uloží se do šablon i do aktuálního měsíce
+ * - pokud isRecurring = false: uloží se pouze jednorázově do aktuálního měsíce
+ */
+export async function addNewExpense({ name, amountCents, category, dueDay, periodKey, isRecurring }) {
+  let templateId = null;
+
+  if (isRecurring) {
+    templateId = await dbAdd('recurring_templates', {
+      name,
+      amountCents,
+      category,
+      dueDay: dueDay || 15,
+      active: true
+    });
+  }
+
+  const newMonthlyItem = {
+    templateId,
+    name,
+    category,
+    plannedAmountCents: amountCents,
+    paidAmountCents: 0,
+    dueDay: dueDay || 15,
+    period: periodKey,
+    isPaid: false,
+    paidDate: null,
+    isLoanRepayment: false,
+    note: ''
+  };
+
+  const id = await dbAdd('monthly_expenses', newMonthlyItem);
+  newMonthlyItem.id = id;
+  return newMonthlyItem;
+}
+
+/**
+ * Odstranění položky:
+ * - smaže položku z aktuálního měsíce
+ * - pokud deleteTemplate = true, smaže ji i z trvalých šablon pro budoucí měsíce
+ */
+export async function removeExpense(expenseId, deleteTemplate = false) {
+  const allExpenses = await dbGetAll('monthly_expenses');
+  const expense = allExpenses.find(e => e.id === expenseId);
+  if (!expense) return false;
+
+  await dbDelete('monthly_expenses', expenseId);
+
+  if (deleteTemplate && expense.templateId) {
+    await dbDelete('recurring_templates', expense.templateId);
+  }
+
+  return true;
 }
 
 /**
