@@ -194,7 +194,7 @@
       flex-direction: column;
       align-items: center;
       font-size: 0.75rem;
-      padding: 0.35rem 0.75rem;
+      padding: 0.35rem 0.6rem;
       cursor: pointer;
     }
 
@@ -216,8 +216,9 @@
   </main>
 
   <nav class="nav-bar">
+    <button id="nav-dashboard" class="nav-btn active">Přehled</button>
     <button id="nav-expenses" class="nav-btn">Platby</button>
-    <button id="nav-debts" class="nav-btn active">Půjčky & Dluhy</button>
+    <button id="nav-debts" class="nav-btn">Dluhy & Pohledávky</button>
     <button id="nav-goals" class="nav-btn">Cíle</button>
     <button id="nav-settings" class="nav-btn">Nastavení</button>
   </nav>
@@ -226,7 +227,6 @@
     const DB_NAME = 'KolobeznikRozpocetDB';
     const DB_VERSION = 2;
 
-    // Požadavek na trvalé úložiště (Persistent Storage), aby Android data nikdy nesmazal
     let isStoragePersistent = false;
     async function requestPersistence() {
       if (navigator.storage && navigator.storage.persist) {
@@ -412,13 +412,14 @@
       return created;
     }
 
-    let activeTab = 'debts';
+    let activeTab = 'dashboard'; // Výchozí obrazovka po spuštění
     const currentPeriod = getPeriodKey();
 
     const czechMonths = ["Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"];
     const now = new Date();
     document.getElementById('current-period').textContent = `${czechMonths[now.getMonth()]} ${now.getFullYear()}`;
 
+    document.getElementById('nav-dashboard').addEventListener('click', () => setTab('dashboard'));
     document.getElementById('nav-expenses').addEventListener('click', () => setTab('expenses'));
     document.getElementById('nav-debts').addEventListener('click', () => setTab('debts'));
     document.getElementById('nav-goals').addEventListener('click', () => setTab('goals'));
@@ -427,11 +428,98 @@
     function setTab(tab) {
       activeTab = tab;
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      if (tab === 'dashboard') document.getElementById('nav-dashboard').classList.add('active');
       if (tab === 'expenses') document.getElementById('nav-expenses').classList.add('active');
       if (tab === 'debts') document.getElementById('nav-debts').classList.add('active');
       if (tab === 'goals') document.getElementById('nav-goals').classList.add('active');
       if (tab === 'settings') document.getElementById('nav-settings').classList.add('active');
       render();
+    }
+
+    // --- ZÁLOŽKA 0: HLAVNÍ FINANČNÍ DASHBOARD ---
+    async function renderDashboard() {
+      const allExpenses = await dbGetAll('monthly_expenses');
+      const monthExpenses = allExpenses.filter(e => e.period === currentPeriod);
+
+      let unpaidExpensesCents = 0;
+      let paidExpensesCents = 0;
+      let totalPlannedCents = 0;
+
+      for (const e of monthExpenses) {
+        totalPlannedCents += e.plannedAmountCents;
+        if (e.isPaid) paidExpensesCents += e.plannedAmountCents;
+        else unpaidExpensesCents += e.plannedAmountCents;
+      }
+
+      const debts = await dbGetAll('debts_payable');
+      const totalDebtCents = debts.reduce((sum, d) => sum + d.principalRemainingCents, 0);
+
+      const receivables = await dbGetAll('debts_receivable');
+      const totalReceivableCents = receivables.reduce((sum, r) => sum + r.remainingAmountCents, 0);
+
+      const goals = await dbGetAll('savings_goals');
+      const totalAllocatedGoalsCents = goals.reduce((sum, g) => sum + (g.allocatedCents || 0), 0);
+
+      // Čistá finanční bilance = Pohledávky + Rezervy - Dluhy
+      const netWorthCents = totalReceivableCents + totalAllocatedGoalsCents - totalDebtCents;
+
+      const container = document.getElementById('app-container');
+      container.innerHTML = `
+        <div class="card" style="border-left: 4px solid var(--accent);">
+          <div class="card-title">Měsíční rozpočet (${czechMonths[now.getMonth()]} ${now.getFullYear()})</div>
+          <div class="metric-value" style="color: var(--accent);">${formatKc(totalPlannedCents)}</div>
+          <div class="metric-sub">Celkem plánované měsíční výdaje</div>
+
+          <div class="grid-2" style="margin-top: 0.85rem;">
+            <div style="background-color: rgba(255, 255, 255, 0.03); padding: 0.6rem; border-radius: 8px;">
+              <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Zaplaceno</div>
+              <div style="font-size: 1.05rem; font-weight: bold; color: var(--accent-green);">${formatKc(paidExpensesCents)}</div>
+            </div>
+            <div style="background-color: rgba(255, 255, 255, 0.03); padding: 0.6rem; border-radius: 8px;">
+              <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Zbývá doplatit</div>
+              <div style="font-size: 1.05rem; font-weight: bold; color: var(--accent-red);">${formatKc(unpaidExpensesCents)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card" style="cursor: pointer;" id="dash-card-debts">
+            <div class="card-title">Moje dluhy</div>
+            <div class="metric-value" style="color: var(--accent-red); font-size: 1.15rem;">${formatKc(totalDebtCents)}</div>
+            <div class="metric-sub">Provident & AvaFin</div>
+          </div>
+
+          <div class="card" style="cursor: pointer;" id="dash-card-receivables">
+            <div class="card-title">Dluží mně</div>
+            <div class="metric-value" style="color: var(--accent-green); font-size: 1.15rem;">${formatKc(totalReceivableCents)}</div>
+            <div class="metric-sub">KOV, JIŘÍ, MAGDA</div>
+          </div>
+        </div>
+
+        <div class="card" style="cursor: pointer;" id="dash-card-goals">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <div class="card-title">Úspory a finanční cíle</div>
+              <div class="metric-value" style="color: var(--accent-green);">${formatKc(totalAllocatedGoalsCents)}</div>
+              <div class="metric-sub">${goals.length} aktivních cílů (rezerva, zuby, koloběžka...)</div>
+            </div>
+            <button class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">Otevřít</button>
+          </div>
+        </div>
+
+        <div class="card" style="border: 1px solid rgba(255, 255, 255, 0.1);">
+          <div class="card-title">Čistá bilance závazků a pohledávek</div>
+          <div class="metric-value" style="color: ${netWorthCents >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
+            ${formatKc(netWorthCents)}
+          </div>
+          <div class="metric-sub">Rozdíl: (pohledávky + úspory) mínus tvé evidované dluhy</div>
+        </div>
+      `;
+
+      // Rychlé prokliky z dashboardu
+      document.getElementById('dash-card-debts').addEventListener('click', () => setTab('debts'));
+      document.getElementById('dash-card-receivables').addEventListener('click', () => setTab('debts'));
+      document.getElementById('dash-card-goals').addEventListener('click', () => setTab('goals'));
     }
 
     // --- ZÁLOŽKA 1: PLATBY ---
@@ -992,7 +1080,6 @@
         </div>
       `;
 
-      // 1. Export do souboru
       document.getElementById('btn-export-backup').addEventListener('click', async () => {
         const backup = await getBackupPayload();
         const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -1002,19 +1089,17 @@
         a.click();
       });
 
-      // 2. Kopírování do schránky
       document.getElementById('btn-copy-backup').addEventListener('click', async () => {
         const backup = await getBackupPayload();
         const jsonStr = JSON.stringify(backup);
         try {
           await navigator.clipboard.writeText(jsonStr);
-          alert('Kompletní záloha byla zkopírována do schránky! Můžeš si ji vložit (vložit/paste) kamkoliv do e-mailu nebo poznámek.');
+          alert('Kompletní záloha byla zkopírována do schránky! Můžeš si ji vložit kamkoliv do e-mailu nebo poznámek.');
         } catch (err) {
-          prompt('Zkopíruj si tento text zálohy ručně (Ctrl+C nebo kopírovat):', jsonStr);
+          prompt('Zkopíruj si tento text zálohy ručně:', jsonStr);
         }
       });
 
-      // 3. Reset do výchozího stavu
       document.getElementById('btn-force-reload-data').addEventListener('click', async () => {
         if (confirm('Nastavit znovu výchozí stav pohledávek k 15. 10. 2026?')) {
           await seedInitialData(true);
@@ -1023,7 +1108,6 @@
         }
       });
 
-      // 4. Import souboru
       document.getElementById('input-restore').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1074,7 +1158,8 @@
       await seedInitialData();
       await ensureMonthInitialized(currentPeriod);
 
-      if (activeTab === 'expenses') await renderExpenses();
+      if (activeTab === 'dashboard') await renderDashboard();
+      else if (activeTab === 'expenses') await renderExpenses();
       else if (activeTab === 'debts') await renderDebts();
       else if (activeTab === 'goals') await renderGoals();
       else if (activeTab === 'settings') await renderSettings();
